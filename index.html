@@ -1,0 +1,3020 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="ФинАнализ — анализ банковских выписок, учёт ДДС, справочник контрагентов">
+<meta name="theme-color" content="#00b894">
+<meta property="og:title" content="ФинАнализ">
+<meta property="og:description" content="Анализ банковских выписок, ДДС, справочник контрагентов">
+<meta property="og:type" content="website">
+<link rel="manifest" href="manifest.json">
+<title>ФинАнализ — Анализ банковских выписок</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface2: #f0f2f7;
+  --border: #dde1ec;
+  --accent: #00a688;
+  --accent2: #ff6b35;
+  --accent3: #6c5fff;
+  --income: #00a688;
+  --expense: #e8294a;
+  --text: #1a1d2e;
+  --muted: #7a8099;
+  --card-h: 180px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* NO GRID BACKGROUND */
+
+.app { position: relative; z-index: 1; }
+
+/* HEADER */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 32px;
+  border-bottom: 1px solid var(--border);
+  background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  font-family: 'Unbounded', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.5px;
+}
+
+.logo span { color: var(--accent); }
+
+.header-stats {
+  display: flex;
+  gap: 32px;
+}
+
+.hstat {
+  text-align: right;
+}
+
+.hstat-label {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.hstat-value {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.hstat-value.inc { color: var(--income); }
+.hstat-value.exp { color: var(--expense); }
+
+/* TABS */
+.tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tab {
+  padding: 14px 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.tab:hover { color: var(--text); }
+
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* MAIN LAYOUT */
+.main { padding: 28px 32px; }
+
+/* UPLOAD ZONE */
+.upload-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.upload-zone {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(0,212,170,0.05) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.upload-zone:hover::before { opacity: 1; }
+.upload-zone:hover { border-color: var(--accent); }
+
+.upload-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(0,212,170,0.05);
+}
+
+.upload-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.upload-title {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.upload-sub {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.upload-zone input[type=file] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* STATS CARDS */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.stat-card.inc::after { background: var(--income); }
+.stat-card.exp::after { background: var(--expense); }
+.stat-card.net::after { background: var(--accent3); }
+.stat-card.cnt::after { background: var(--accent2); }
+
+.stat-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.stat-value.inc { color: var(--income); }
+.stat-value.exp { color: var(--expense); }
+.stat-value.net { color: var(--accent3); }
+.stat-value.cnt { color: var(--accent2); }
+
+/* CHARTS */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.chart-title {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.chart-wrap { height: 200px; position: relative; }
+
+/* FILTERS */
+.filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+select, input[type=text], input[type=date] {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 7px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+select:focus, input:focus { border-color: var(--accent); }
+select option { background: var(--surface2); }
+
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+
+.btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--expense);
+  color: var(--expense);
+  font-size: 10px;
+  padding: 4px 10px;
+}
+
+.btn-danger:hover { background: var(--expense); color: #fff; }
+
+/* TABLE */
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-title {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.table-actions { display: flex; gap: 8px; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+thead th:hover { color: var(--accent); }
+
+tbody tr {
+  border-bottom: 1px solid rgba(30,37,53,0.5);
+  transition: background 0.15s;
+}
+
+tbody tr:hover { background: var(--surface2); }
+
+tbody td {
+  padding: 10px 16px;
+  vertical-align: middle;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount-inc { color: var(--income); font-weight: 500; }
+.amount-exp { color: var(--expense); font-weight: 500; }
+
+/* BADGES */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.badge-income { background: rgba(0,212,170,0.12); color: var(--income); }
+.badge-expense { background: rgba(255,77,109,0.12); color: var(--expense); }
+
+/* CATEGORY BADGE */
+.cat-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inline-select {
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  max-width: 160px;
+  transition: border-color 0.2s;
+}
+.inline-select:hover, .inline-select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.inline-input {
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  width: 110px;
+  transition: border-color 0.2s;
+}
+.inline-input:hover, .inline-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  width: 500px;
+  max-width: 90vw;
+  transform: translateY(20px);
+  transition: transform 0.2s;
+}
+
+.modal-overlay.open .modal { transform: translateY(0); }
+
+.modal-title {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+
+.form-group label {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.form-group select,
+.form-group input {
+  width: 100%;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* VALIDATION */
+.validation-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.validation-title {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.val-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(30,37,53,0.5);
+  font-size: 11px;
+}
+
+.val-item:last-child { border-bottom: none; }
+.val-icon { flex-shrink: 0; font-size: 14px; }
+.val-msg { color: var(--muted); }
+.val-msg strong { color: var(--text); }
+
+/* DDS TABLE */
+.dds-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.dds-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dds-card-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  font-family: 'Unbounded', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tx-selected {
+  background: color-mix(in srgb, var(--accent) 8%, transparent) !important;
+}
+.tx-selected:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent) !important;
+}
+tr:not(.tx-selected):hover td {
+  background: var(--hover);
+}
+.tx-cb {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.dds-clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.dds-clickable:hover {
+  background: var(--hover);
+  border-radius: 6px;
+}
+.dds-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(30,37,53,0.3);
+  font-size: 11px;
+  transition: background 0.15s;
+}
+
+.dds-row:hover { background: var(--surface2); }
+.dds-row:last-child { border-bottom: none; }
+
+.dds-bar {
+  height: 3px;
+  border-radius: 2px;
+  margin-top: 4px;
+  transition: width 0.5s ease;
+}
+
+/* EMPTY STATE */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+.empty-text { font-size: 12px; letter-spacing: 1px; }
+
+/* GOOGLE SHEETS INFO */
+.gs-info {
+  background: linear-gradient(135deg, rgba(124,111,255,0.08), rgba(0,212,170,0.05));
+  border: 1px solid rgba(124,111,255,0.2);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.gs-title {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent3);
+  margin-bottom: 10px;
+}
+
+.gs-input-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.gs-input-row input { flex: 1; }
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 20px;
+  font-size: 12px;
+  z-index: 2000;
+  transform: translateX(200px);
+  opacity: 0;
+  transition: all 0.3s;
+  max-width: 300px;
+}
+
+.toast.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.toast.success { border-color: var(--income); }
+.toast.error { border-color: var(--expense); }
+.toast.info { border-color: var(--accent3); }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.page { display: none; }
+.page.active { display: block; }
+
+/* RESPONSIVE TABLE SCROLL */
+.table-scroll { overflow-x: auto; }
+
+/* CATEGORY COLORS */
+.cat-0 { color: #00d4aa; border-color: rgba(0,212,170,0.3); }
+.cat-1 { color: #ff6b35; border-color: rgba(255,107,53,0.3); }
+.cat-2 { color: #7c6fff; border-color: rgba(124,111,255,0.3); }
+.cat-3 { color: #ffd93d; border-color: rgba(255,217,61,0.3); }
+.cat-4 { color: #ff4d6d; border-color: rgba(255,77,109,0.3); }
+.cat-5 { color: #4ecdc4; border-color: rgba(78,205,196,0.3); }
+.cat-6 { color: #95e1d3; border-color: rgba(149,225,211,0.3); }
+.cat-7 { color: #f38181; border-color: rgba(243,129,129,0.3); }
+.cat-8 { color: #a8e6cf; border-color: rgba(168,230,207,0.3); }
+.cat-9 { color: #dda0dd; border-color: rgba(221,160,221,0.3); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">Фин<span>Анализ</span></div>
+    <div class="header-stats">
+      <div class="hstat">
+        <div class="hstat-label">Транзакций</div>
+        <div class="hstat-value" id="hTxCount">0</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-label">Доходы</div>
+        <div class="hstat-value inc" id="hIncome">0 ₽</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-label">Расходы</div>
+        <div class="hstat-value exp" id="hExpense">0 ₽</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('upload')">📥 Загрузка</button>
+    <button class="tab" onclick="switchTab('transactions')">📋 Транзакции</button>
+    <button class="tab" onclick="switchTab('analytics')">📊 Аналитика</button>
+    <button class="tab" onclick="switchTab('dds')">📑 Статьи ДДС</button>
+    <button class="tab" onclick="switchTab('settings')">⚙️ Настройки</button>
+  </div>
+
+  <div class="main">
+
+    <!-- UPLOAD TAB -->
+    <div id="tab-upload" class="page active">
+      <div class="upload-section">
+        <div class="upload-zone" id="dropZone1C" ondragover="handleDrag(event,this)" ondragleave="removeDrag(this)" ondrop="handleDrop(event,'1c')">
+          <input type="file" accept=".txt,.csv" onchange="loadFile(event,'1c')">
+          <span class="upload-icon">🏦</span>
+          <div class="upload-title">1С / TXT / CSV</div>
+          <div class="upload-sub">Перетащите файл или нажмите</div>
+        </div>
+        <div class="upload-zone" id="dropZoneSber" ondragover="handleDrag(event,this)" ondragleave="removeDrag(this)" ondrop="handleDrop(event,'sber')">
+          <input type="file" accept=".xlsx,.xls" onchange="loadFile(event,'sber')">
+          <span class="upload-icon">💚</span>
+          <div class="upload-title">Сбербанк Excel</div>
+          <div class="upload-sub">Перетащите .xlsx файл или нажмите</div>
+        </div>
+      </div>
+
+      <div id="validationPanel" class="validation-panel" style="display:none">
+        <div class="validation-title">
+          <span>🔍</span> Результаты проверки
+          <span id="valStatus" style="margin-left:auto; font-size:11px;"></span>
+        </div>
+        <div id="valItems"></div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">📂 Загруженные файлы</div>
+          <button class="btn btn-danger" onclick="clearAll()">Очистить всё</button>
+        </div>
+        <div id="uploadHistory">
+          <div class="empty">
+            <div class="empty-icon">📂</div>
+            <div class="empty-text">Файлы ещё не загружались</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS TAB -->
+    <div id="tab-transactions" class="page">
+      <div class="filters">
+        <div class="filter-group">
+          <span class="filter-label">Тип</span>
+          <select id="filterType" onchange="applyFilters()">
+            <option value="">Все</option>
+            <option value="income">Доходы</option>
+            <option value="expense">Расходы</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Статья</span>
+          <select id="filterCat" onchange="applyFilters()">
+            <option value="">Все</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Дата с</span>
+          <input type="date" id="filterDateFrom" onchange="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">по</span>
+          <input type="date" id="filterDateTo" onchange="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <input type="text" id="filterSearch" placeholder="Поиск контрагента..." oninput="applyFilters()" style="width:200px">
+        </div>
+        <button class="btn btn-outline" onclick="resetFilters()">Сбросить</button>
+        <button class="btn btn-primary" onclick="exportExcel()" style="margin-left:auto">⬇ Excel</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Транзакции <span id="txCount" style="color:var(--muted);font-size:11px"></span></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="txSelectedCount" style="font-size:11px;color:var(--muted);display:none"></span>
+            <button id="btnGroupEditTx" class="btn btn-primary" onclick="openGroupEditTx()" style="display:none">✏️ Изменить группу</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:32px"><input type="checkbox" id="txCheckAll" onchange="toggleAllTx(this.checked)" title="Выбрать все"></th>
+                <th onclick="sortBy('date')">Дата ↕</th>
+                <th onclick="sortBy('counterparty')">Контрагент ↕</th>
+                <th>Назначение</th>
+                <th onclick="sortBy('amount')">Сумма ↕</th>
+                <th>Тип</th>
+                <th>Счёт</th>
+                <th onclick="sortBy('category')">Статья ДДС ↕</th>
+                <th>Проект</th>
+                <th>✏️</th>
+              </tr>
+            </thead>
+            <tbody id="txBody"></tbody>
+          </table>
+        </div>
+        <div id="txEmpty" class="empty" style="display:none">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">Нет транзакций. Загрузите файл.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS TAB -->
+    <div id="tab-analytics" class="page">
+      <div class="stats-grid">
+        <div class="stat-card inc">
+          <div class="stat-label">Итого доходы</div>
+          <div class="stat-value inc" id="statIncome">0 ₽</div>
+        </div>
+        <div class="stat-card exp">
+          <div class="stat-label">Итого расходы</div>
+          <div class="stat-value exp" id="statExpense">0 ₽</div>
+        </div>
+        <div class="stat-card net">
+          <div class="stat-label">Чистый поток</div>
+          <div class="stat-value net" id="statNet">0 ₽</div>
+        </div>
+        <div class="stat-card cnt">
+          <div class="stat-label">Транзакций</div>
+          <div class="stat-value cnt" id="statCount">0</div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Доходы / Расходы по месяцам</div>
+          <div class="chart-wrap"><canvas id="chartMonthly"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Статьи расходов</div>
+          <div class="chart-wrap"><canvas id="chartCategories"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Топ контрагенты</div>
+          <div class="chart-wrap"><canvas id="chartCounterparties"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Динамика баланса</div>
+          <div class="chart-wrap"><canvas id="chartBalance"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DDS TAB -->
+    <div id="tab-dds" class="page">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="font-family:'Unbounded',sans-serif;font-size:14px;font-weight:600">Движение денежных средств</div>
+        <button class="btn btn-primary" onclick="exportExcel('dds')">⬇ Выгрузить отчёт</button>
+      </div>
+      <div class="dds-grid" id="ddsGrid">
+        <div class="empty" style="grid-column:1/-1">
+          <div class="empty-icon">📑</div>
+          <div class="empty-text">Загрузите транзакции</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS TAB -->
+    <div id="tab-settings" class="page">
+      <div class="gs-info">
+        <div class="gs-title">🔗 Интеграция с Google Sheets</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.6">
+          Для синхронизации с Google Таблицами нужен Google Apps Script. Создайте веб-приложение и вставьте URL ниже.
+          Инструкция: Google Sheets → Расширения → Apps Script → Деплой как веб-приложение.
+        </div>
+        <div class="gs-input-row">
+          <input type="text" id="gsUrl" placeholder="https://script.google.com/macros/s/..." value="" style="flex:1">
+          <button class="btn btn-primary" onclick="testGS()">🔌 Проверить связь</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn btn-outline" onclick="syncWriteGS()">⬆ Записать всё в Sheets</button>
+          <button class="btn btn-outline" onclick="syncReadGS()">⬇ Загрузить из Sheets</button>
+          <button class="btn btn-outline" onclick="syncAppendGS()">➕ Добавить новые транзакции</button>
+        </div>
+        <div id="gsStatus" style="margin-top:8px;font-size:11px;color:var(--muted)"></div>
+      </div>
+
+      <div class="table-wrap" style="margin-bottom:20px">
+        <div class="table-header">
+          <div class="table-title">Статьи ДДС</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label class="btn btn-outline" style="cursor:pointer" title="Загрузить из Excel: колонки Статья ДДС, Тип (Доход/Расход)">
+              ⬆ Загрузить
+              <input type="file" accept=".xlsx,.xls,.csv" onchange="importCategoriesFromFile(event)" style="display:none">
+            </label>
+            <button class="btn btn-outline" onclick="exportCategoriesOnly()">⬇ Скачать</button>
+            <button class="btn btn-primary" onclick="openCatModal()">+ Добавить</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Тип</th>
+              <th>Ключевые слова</th>
+              <th>Действие</th>
+            </tr>
+          </thead>
+          <tbody id="catTable"></tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Проекты</div>
+          <button class="btn btn-primary" onclick="addProject()">+ Добавить</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Название</th><th>Код</th><th>Действие</th></tr>
+          </thead>
+          <tbody id="projTable"></tbody>
+        </table>
+      </div>
+
+      <!-- BANK ACCOUNTS -->
+      <div class="table-wrap" style="margin-top:20px;margin-bottom:20px">
+        <div class="table-header">
+          <div class="table-title">🏦 Расчётные счета</div>
+          <button class="btn btn-primary" onclick="addAccountManual()">+ Добавить вручную</button>
+        </div>
+        <div style="padding:8px 20px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">
+          Счета определяются автоматически при загрузке выписки. Аналитика ведётся в разрезе счетов.
+        </div>
+        <div class="table-scroll">
+          <table><thead><tr><th>Номер счёта</th><th>Банк</th><th>Название</th><th>Добавлен</th><th>Действие</th></tr></thead>
+          <tbody id="accountsTable"></tbody></table>
+        </div>
+        <div id="accountsEmpty" class="empty" style="padding:24px">
+          <div class="empty-icon" style="font-size:28px">🏦</div>
+          <div class="empty-text">Счета появятся автоматически при загрузке выписки</div>
+        </div>
+      </div>
+
+      <!-- COUNTERPARTY DIRECTORY -->
+      <div class="table-wrap" style="margin-top:20px">
+        <div class="table-header">
+          <div class="table-title">📒 Справочник контрагентов</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:var(--muted)">Контрагент → Статья ДДС</span>
+            <label class="btn btn-primary" style="cursor:pointer">
+              ⬆ Загрузить Excel/CSV
+              <input type="file" accept=".xlsx,.xls,.csv" onchange="loadDirectory(event)" style="display:none">
+            </label>
+            <button class="btn btn-outline" onclick="addDirRow()">+ Добавить вручную</button>
+            <button class="btn btn-outline" onclick="exportDirectory()">⬇ Скачать</button>
+          </div>
+        </div>
+        <div style="padding:10px 20px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">
+          Формат файла: колонки <strong style="color:var(--text)">Контрагент</strong>, <strong style="color:var(--text)">ИНН</strong> (опц.), <strong style="color:var(--text)">Статья ДДС</strong>. Поиск нечёткий — без ООО/кавычек. Скачать — экспортирует 2 листа: контрагенты + статьи ДДС.
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Контрагент</th><th>ИНН</th><th>Статья ДДС</th><th>Добавлен</th><th>Действие</th></tr>
+            </thead>
+            <tbody id="dirTable"></tbody>
+          </table>
+        </div>
+        <div id="dirEmpty" class="empty" style="padding:30px">
+          <div class="empty-icon" style="font-size:32px">📒</div>
+          <div class="empty-text">Справочник пуст. Загрузите файл или добавьте вручную.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Edit Transaction -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" style="max-width:560px;width:95%">
+    <div class="modal-title">✏️ Редактировать транзакцию</div>
+    <div id="editInfoBar" style="font-size:10px;color:var(--muted);background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:14px;line-height:1.6"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Дата</label>
+        <input type="date" id="editDate">
+      </div>
+      <div class="form-group">
+        <label>Тип</label>
+        <select id="editType">
+          <option value="income">Доход</option>
+          <option value="expense">Расход</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Сумма</label>
+        <input type="number" id="editAmount" step="0.01" min="0">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>Контрагент</label>
+      <input type="text" id="editCounterparty">
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>Назначение платежа (полное)</label>
+      <textarea id="editPurpose" rows="4" style="resize:vertical;font-size:12px;line-height:1.5;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);width:100%;box-sizing:border-box;font-family:inherit"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Статья ДДС</label>
+        <select id="editCat"></select>
+      </div>
+      <div class="form-group">
+        <label>Проект</label>
+        <select id="editProject"></select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:10px">
+      <label>Расч. счёт</label>
+      <select id="editAccount">
+        <option value="">— не указан —</option>
+      </select>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-outline" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Category -->
+<div class="modal-overlay" id="catModalOverlay">
+  <div class="modal">
+    <div class="modal-title">➕ Новая статья ДДС</div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>Название статьи ДДС</label>
+      <input type="text" id="catName" placeholder="Аренда офиса">
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>Тип</label>
+      <select id="catType">
+        <option value="expense">Расход</option>
+        <option value="income">Доход</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>Ключевые слова (через запятую)</label>
+      <input type="text" id="catKeywords" placeholder="аренда, офис, помещение">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeCatModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveCat()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let transactions = [];
+
+let categories = [{"id": 0, "name": "Доходы от проживания", "type": "income", "keywords": ["проживание", "оплата за", "услуги реаб"]}, {"id": 1, "name": "SEO Яндекс", "type": "expense", "keywords": ["яндекс"]}, {"id": 2, "name": "Анализы", "type": "expense", "keywords": ["анализы"]}, {"id": 3, "name": "Аренда офиса", "type": "expense", "keywords": ["аренда", "офиса"]}, {"id": 4, "name": "Аренда помещений", "type": "expense", "keywords": ["аренда", "помещений"]}, {"id": 5, "name": "Бухгалтерские услуги", "type": "expense", "keywords": ["бухгалтерские", "услуги"]}, {"id": 6, "name": "Ведение Яндекс Директ", "type": "expense", "keywords": ["ведение", "яндекс", "директ"]}, {"id": 7, "name": "Внутреннее перемещение", "type": "income", "keywords": ["внутреннее", "перемещение"]}, {"id": 8, "name": "Возврат по услугам", "type": "income", "keywords": ["возврат", "услугам"]}, {"id": 9, "name": "Дивиденды инвесторам", "type": "expense", "keywords": ["дивиденды", "инвесторам"]}, {"id": 10, "name": "Единый налоговый платеж (УСН)", "type": "expense", "keywords": ["единый", "налоговый", "платеж"]}, {"id": 11, "name": "Закупка бытовой химии", "type": "expense", "keywords": ["закупка", "бытовой", "химии"]}, {"id": 12, "name": "Закупка лекарственных препаратов", "type": "expense", "keywords": ["закупка", "лекарственных", "препаратов"]}, {"id": 13, "name": "Закупка материальных запасов", "type": "expense", "keywords": ["закупка", "материальных", "запасов"]}, {"id": 14, "name": "Закупка оргтехники", "type": "expense", "keywords": ["закупка", "оргтехники"]}, {"id": 15, "name": "Закупка продуктов питания", "type": "expense", "keywords": ["закупка", "продуктов", "питания"]}, {"id": 16, "name": "Зарплата вспомогательного персонала", "type": "expense", "keywords": ["зарплата", "вспомогательного", "персонала"]}, {"id": 17, "name": "Зарплата производственного персонала", "type": "expense", "keywords": ["зарплата", "производственного", "персонала"]}, {"id": 18, "name": "Зарплата управленческого персонала", "type": "expense", "keywords": ["зарплата", "управленческого", "персонала"]}, {"id": 19, "name": "Канцелярские расходы", "type": "expense", "keywords": ["канцелярские", "расходы"]}, {"id": 20, "name": "Командировочные расходы", "type": "expense", "keywords": ["командировочные", "расходы"]}, {"id": 21, "name": "Комиссия банка", "type": "expense", "keywords": ["комиссия", "банка"]}, {"id": 22, "name": "Коммунальные услуги", "type": "expense", "keywords": ["коммунальные", "услуги"]}, {"id": 23, "name": "Лицензии и ПО", "type": "expense", "keywords": ["лицензии"]}, {"id": 24, "name": "Маркетинг ПО и лицензии", "type": "expense", "keywords": ["маркетинг", "лицензии"]}, {"id": 25, "name": "Медицинские осмотры персонала", "type": "expense", "keywords": ["медицинские", "осмотры", "персонала"]}, {"id": 26, "name": "Налоги и страховые взносы на ФОТ производственного персонала", "type": "expense", "keywords": ["налоги", "страховые", "взносы"]}, {"id": 27, "name": "Написание SEO статей", "type": "expense", "keywords": ["написание", "статей"]}, {"id": 28, "name": "Офисные расходы", "type": "expense", "keywords": ["офисные", "расходы"]}, {"id": 29, "name": "Охранные услуги", "type": "expense", "keywords": ["охранные", "услуги"]}, {"id": 30, "name": "Погашение кредитов и займов", "type": "expense", "keywords": ["погашение", "кредитов", "займов"]}, {"id": 31, "name": "Подбор персонала (HR)", "type": "expense", "keywords": ["подбор", "персонала"]}, {"id": 32, "name": "Представительские расходы", "type": "expense", "keywords": ["представительские", "расходы"]}, {"id": 33, "name": "Противопожарная безопасность", "type": "expense", "keywords": ["противопожарная", "безопасность"]}, {"id": 34, "name": "Проценты по полученным кредитам и займам", "type": "expense", "keywords": ["проценты", "полученным", "кредитам"]}, {"id": 35, "name": "Прочая доставка", "type": "expense", "keywords": ["прочая", "доставка"]}, {"id": 36, "name": "Прочие административные расходы", "type": "expense", "keywords": ["прочие", "административные", "расходы"]}, {"id": 37, "name": "Прочие маркетинговые расходы", "type": "expense", "keywords": ["прочие", "маркетинговые", "расходы"]}, {"id": 38, "name": "Рекламный бюджет Яндекс Директ", "type": "expense", "keywords": ["рекламный", "бюджет", "яндекс"]}, {"id": 39, "name": "Ремонт и обслуживание оборудования", "type": "expense", "keywords": ["ремонт", "обслуживание", "оборудования"]}, {"id": 40, "name": "Ремонт и обслуживание помещений", "type": "expense", "keywords": ["ремонт", "обслуживание", "помещений"]}, {"id": 41, "name": "Санэпидемиологические услуги", "type": "expense", "keywords": ["санэпидемиологические", "услуги"]}, {"id": 42, "name": "Связь и интернет", "type": "expense", "keywords": ["связь", "интернет"]}, {"id": 43, "name": "Такси", "type": "expense", "keywords": ["такси"]}, {"id": 44, "name": "Услуги КоллЦентра", "type": "expense", "keywords": ["услуги", "коллцентра"]}, {"id": 45, "name": "Услуги прачечной и стирка текстиля", "type": "expense", "keywords": ["услуги", "прачечной", "стирка"]}, {"id": 46, "name": "Услуги программистов (доработка / поддержка сайта и пр.)", "type": "expense", "keywords": ["услуги", "программистов", "доработка"]}, {"id": 47, "name": "Утилизация мед отходов", "type": "expense", "keywords": ["утилизация", "отходов"]}, {"id": 48, "name": "Юридические услуги", "type": "expense", "keywords": ["юридические", "услуги"]}, {"id": 49, "name": "Проживание (соц)", "type": "income", "keywords": ["проживание"]}];
+let projects = [
+  { id: 1, name: 'Основной', code: 'MAIN' },
+  { id: 2, name: 'Проект А', code: 'PRJ-A' },
+  { id: 3, name: 'Проект Б', code: 'PRJ-B' },
+];
+let uploadHistory = [];
+let directory = [{"counterparty": "ООО НПФ ХЕЛИКС", "inn": "", "category": "Анализы"}, {"counterparty": "ООО Научно-производственная Фирма ХЕЛИКС", "inn": "", "category": "Анализы"}, {"counterparty": "ООО МАЯК", "inn": "", "category": "Аренда офиса"}, {"counterparty": "ЖДАНКО АНАТОЛИЙ ИВАНОВИЧ (СЗ)", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ИП Гусарова Светлана Петровна", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Голубцов Владимир Юрьевич", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Федулова Наталья Ивановна", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Невский Андрей Геннадьевич", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Лукьяненко Вера Васильевна", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Смирнов Илья Юрьевич", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Рыбин Кирилл Николаевич", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ИП Волкова Мария Михайловна", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ООО СМУ ЛЕНГИДРОСТРОЙ", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ИП КУЛЕШОВА НАТАЛЬЯ НИКОЛАЕВНА", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ИП АЛЕКСЕЕВ ДМИТРИЙ НИКОЛАЕВИЧ", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Константинова Наталья Леонидовна", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Индивидуальный предприниматель Романов Сергей Юрьевич", "inn": "", "category": "Аренда помещений"}, {"counterparty": "Константинова Нина Николаевна", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ИП Суханов Сергей Николаевич", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ООО Гостиная", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ООО Гостиная", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ИП ТЕРЁХИНА МАРИЯ АЛЕКСАНДРОВНА", "inn": "", "category": "Бухгалтерские услуги"}, {"counterparty": "ИП Кургалова Алиса Симоновна", "inn": "", "category": "Ведение Яндекс Директ"}, {"counterparty": "ООО РВЦ КАНОНЕРСКИЙ", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "Северо-Западный банк", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ РЕАБИЛИТАЦИОННО - ВОССТАНОВИТЕЛЬНЫЙ ЦЕНТР ЛЕСНОЕ", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО ЭСТЕЙТ СПБ 4", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО РВЦ ЛЕСНОЕ", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ РЕАБИЛИТАЦИОННО - ВОССТАНОВИТЕЛЬНЫЙ ЦЕНТР ОЗЕРНЫЙ", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО РВЦ ОЗЕРНЫЙ", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО СЕВЕРНАЯ ЗВЕЗДА", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО РВЦ ЩЕЛКОВО", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО РВЦ ПРИБРЕЖНЫЙ Р/С 40702810955000099582 в ПАО Сбербанк г Москва", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО РВЦ БАЛТИЙСКИЙ", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ РЕАБИЛИТАЦИОННО - ВОССТАНОВИТЕЛЬНЫЙ ЦЕНТР ЛЕСНОЕ Р/С 40702810132220000997", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО РВЦ ЩЕЛКОВО Р/С 40702810940000102573 в ПАО Сбербанк г Москва", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "Волков Андрей Николаевич", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Мигдаль Елена Владиславовна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Кузьмина Татьяна Борисовна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Шибаев Андрей Леонидович", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Иванова Ирина Борисовна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Кузнецов Денис Владиславович", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Решетов Илья Владимирович", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Ким Владимир Викторович", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Туманова Нина Андреевна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Работнева Ирина Евгеньевна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Таянчина Екатерина Александровна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Калинчев Юрий Владимирович", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Архипенко Яков Евгеньевич", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Александрова Наталия Юрьевна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "ШАРИСЛАМОВА НАТАЛЬЯ ВЛАДИМИРОВНА", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Кузнецов Олег Викторович", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Мещанинов Дмитрий Евгеньевич", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Алешкина Валентина Михайловна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Гайдукова Вера Сергеевна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Измайлов Дмитрий Юрьевич", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Иванова Ольга Сергеевна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Чирцов Максим Павлович", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Давыдова Татьяна Александровна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Салямова Альфия Наимовна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Большакова Карина Васильевна", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Майоров Максим Вячеславович", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Гусев Сергей Игоревич", "inn": "", "category": "Возврат по услугам"}, {"counterparty": "Кониашвили Адам Николаевич", "inn": "", "category": "Дивиденды инвесторам"}, {"counterparty": "Казначейство России (ФНС России)", "inn": "", "category": "Налоги и страховые взносы на ФОТ производственного персонала"}, {"counterparty": "ПАО Сбербанк", "inn": "", "category": "Комиссия банка"}, {"counterparty": "Казначейство России (ФНС России)", "inn": "", "category": "Единый налоговый платеж (УСН)"}, {"counterparty": "МИ ФНС РОССИИ ПО УПРАВЛЕНИЮ ДОЛГОМ", "inn": "", "category": "Единый налоговый платеж (УСН)"}, {"counterparty": "ООО ТД СЕЗАР", "inn": "", "category": "Закупка бытовой химии"}, {"counterparty": "ООО ФАРМУС", "inn": "", "category": "Закупка бытовой химии"}, {"counterparty": "ООО БСС", "inn": "", "category": "Закупка лекарственных препаратов"}, {"counterparty": "ООО ИНТЕРНЕТ РЕШЕНИЯ", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "УСУБЯН СИБАР ВЛАДИМИРОВНА", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ООО МЕТБОКС", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ ИНТЕРНЕТ РЕШЕНИЯ Р/С 40702810901300010687", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ООО МАТРАСОПТТОРГ", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "Общество с ограниченной ответственностью Интернет Решения", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ООО ХОЛОДИЛЬНИК.РУ", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ООО Фламинго", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ИП ЦИРШ СВЕТЛАНА ВЛАДИМИРОВНА", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ООО КЛЕН", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "Филиал Северно- Западный ООО ДНС РИТЕЙЛ", "inn": "", "category": "Закупка оргтехники"}, {"counterparty": "ООО ВОДНАЯ ИМПЕРИЯ", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ИП Гусарова Светлана Францевна", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ООО БАЛТФУД", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ООО БОНУМ ГРУПП", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ООО Приозерский хлебокомбинат", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ООО ТК ЮПИТЕР ХОЛЛ", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ООО ЧЕБЕР", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ЗАО ЩЕЛКОВОХЛЕБ", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ИП Медведев Андрей Юрьевич", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ООО НЕВСКИЙ ЗАВОД НАПИТКОВ", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "Бучнев Евгений Петрович", "inn": "", "category": "Зарплата вспомогательного персонала"}, {"counterparty": "ИП Терёхина Мария Александровна", "inn": "", "category": "Зарплата управленческого персонала"}, {"counterparty": "Кириенко Роман Николаевич", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Прокофьева Наталия Юрьевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "ПАО Сбербанк", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Столярова Елена Александровна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Святогор Ирина Анатольевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Юртаева Юлия Николаевна", "inn": "", "category": "Зарплата вспомогательного персонала"}, {"counterparty": "Костина Алевтина Николаевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Музин Эдуард Викторович", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Супонева Мария Владимировна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Асланян Илья Альбертович", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Музина Наталия Романовна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Ананьева Ольга Михайловна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Дятлов Виталий Сергеевич", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Семенова Любовь Анатольевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Власова Светлана Евгеньевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Варганова Янина Павловна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "УФК по г. Санкт-Петербургу ( ФКУ УИИ ГУФСИН России по г. Санкт-Петербургу и Ленинградской области л/с 04721А65878)", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Федорова Наталья Михайловна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Алиева Бике Алигусеевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Иванова Галина Петровна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Жидкова Анна Николаевна", "inn": "", "category": "Зарплата вспомогательного персонала"}, {"counterparty": "Иванова Людмила Дмитриевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "ООО КОМУС", "inn": "", "category": "Канцелярские расходы"}, {"counterparty": "ПАО Сбербанк", "inn": "", "category": "Командировочные расходы"}, {"counterparty": "ИП Симонова Галина Александровна", "inn": "", "category": "Командировочные расходы"}, {"counterparty": "Ростовское отделение N5221 ПАО СБЕРБАНК", "inn": "", "category": "Комиссия банка"}, {"counterparty": "ПАО Сбербанк", "inn": "", "category": "Комиссия банка"}, {"counterparty": "АО Альфа-Банк", "inn": "", "category": "Комиссия банка"}, {"counterparty": "ФИЛИАЛ САНКТ-ПЕТЕРБУРГСКИЙ АО АЛЬФА-БАНК", "inn": "", "category": "Комиссия банка"}, {"counterparty": "СЕВЕРО-ЗАПАДНЫЙ БАНК ПАО СБЕРБАНК", "inn": "", "category": "Комиссия банка"}, {"counterparty": "Московский банк Сбербанка России", "inn": "", "category": "Комиссия банка"}, {"counterparty": "АО ПЕТЕРБУРГСКАЯ СБЫТОВАЯ КОМПАНИЯ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ГУП ВОДОКАНАЛ САНКТ-ПЕТЕРБУРГА", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО ГАЗПРОМ МЕЖРЕГИОНГАЗ САНКТ-ПЕТЕРБУРГ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "АО ЕИРЦ ЛО", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО РКС-ЭНЕРГО", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "АО УК ПО ОБРАЩЕНИЮ С ОТХОДАМИ В ЛЕНИНГРАДСКОЙ ОБЛАСТИ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО Городская Станция Дератизации", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "АО ЭлектронТелеком", "inn": "", "category": "Связь и интернет"}, {"counterparty": "АО НЕВСКИЙ ЭКОЛОГИЧЕСКИЙ ОПЕРАТОР", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО АЭФТ-С", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "АО МОСЭНЕРГОСБЫТ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "АО МОСОБЛГАЗ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО ХАРТИЯ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ИП МАМЕДОВА САБИНА ТИМУРОВНА", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО ПЕТРОСТРОЙ ИНЖИНИРИНГ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ТСН ЦЕНТРАЛЬНАЯ-4", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО ПЛАСТИК СИСТЕМА", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО СБС", "inn": "", "category": "Лицензии и ПО"}, {"counterparty": "ООО ЯНДЕКС 360 ДЛЯ БИЗНЕСА", "inn": "", "category": "Лицензии и ПО"}, {"counterparty": "ООО АЛГОРИТМ", "inn": "", "category": "Лицензии и ПО"}, {"counterparty": "АО ПФ СКБ КОНТУР", "inn": "", "category": "Лицензии и ПО"}, {"counterparty": "ООО ВАЗЗАП", "inn": "", "category": "Маркетинг ПО и лицензии"}, {"counterparty": "ООО ТЕЛЕМИР", "inn": "", "category": "Прочие маркетинговые расходы"}, {"counterparty": "ООО КОЛТАЧ СОЛЮШНС", "inn": "", "category": "Маркетинг ПО и лицензии"}, {"counterparty": "ООО МедПомощь", "inn": "", "category": "Медицинские осмотры персонала"}, {"counterparty": "ОСФР ПО САНКТ-ПЕТЕРБУРГУ И ЛЕНИНГРАДСКОЙ ОБЛАСТИ", "inn": "", "category": "Налоги и страховые взносы на ФОТ производственного персонала"}, {"counterparty": "Казначейство России (ФНС России)", "inn": "", "category": "Налоги и страховые взносы на ФОТ производственного персонала"}, {"counterparty": "УФК по г. Санкт-Петербургу (ОСФР по Санкт-Петербургу и Ленинградской области, л/с 04724Ф72000)", "inn": "", "category": "Налоги и страховые взносы на ФОТ производственного персонала"}, {"counterparty": "ОСФР ПО Г. МОСКВЕ И МОСКОВСКОЙ ОБЛАСТИ", "inn": "", "category": "Налоги и страховые взносы на ФОТ производственного персонала"}, {"counterparty": "ЕВСТРАТОВА ЕЛЕНА АЛЕКСАНДРОВНА", "inn": "", "category": "Написание SEO статей"}, {"counterparty": "ИП Поджидаева Ольга Леонидовна", "inn": "", "category": "Офисные расходы"}, {"counterparty": "ООО ДЕЛЬТА СЕВЕРОЗАПАД", "inn": "", "category": "Охранные услуги"}, {"counterparty": "АО Центр безопасности Охрана помещений", "inn": "", "category": "Охранные услуги"}, {"counterparty": "АО ЦРО ПЕРСЕЙ", "inn": "", "category": "Охранные услуги"}, {"counterparty": "ООО ДЕЛЬТА-МОСКВА 6", "inn": "", "category": "Охранные услуги"}, {"counterparty": "СИБИРСКИЙ БАНК ПАО СБЕРБАНК", "inn": "", "category": "Погашение кредитов и займов"}, {"counterparty": "АО АЛЬФА-БАНК", "inn": "", "category": "Погашение кредитов и займов"}, {"counterparty": "ООО КЕХ ЕКОММЕРЦ", "inn": "", "category": "Подбор персонала (HR)"}, {"counterparty": "ООО МАЛЫШ И КО", "inn": "", "category": "Подбор персонала (HR)"}, {"counterparty": "ООО КОНСТАНТ ВОРК", "inn": "", "category": "Подбор персонала (HR)"}, {"counterparty": "ИП Ширедченко Павел Сергеевич", "inn": "", "category": "Противопожарная безопасность"}, {"counterparty": "ООО СПМ", "inn": "", "category": "Противопожарная безопасность"}, {"counterparty": "Индивидуальный предприниматель Ширедченко Павел Сергеевич", "inn": "", "category": "Противопожарная безопасность"}, {"counterparty": "ООО СИГМА КСБ", "inn": "", "category": "Противопожарная безопасность"}, {"counterparty": "АО АЛЬФА-БАНК", "inn": "", "category": "Проценты по полученным кредитам и займам"}, {"counterparty": "Бусыгин Евгений Витальевич", "inn": "", "category": "Прочая доставка"}, {"counterparty": "ООО СДЭК-ГЛОБАЛ", "inn": "", "category": "Прочая доставка"}, {"counterparty": "ООО ПРОКСИМА", "inn": "", "category": "Прочая доставка"}, {"counterparty": "ИП БУНТОВ МАКСИМ ЛЕОНИДОВИЧ", "inn": "", "category": "Прочая доставка"}, {"counterparty": "ЛИТВИНОВА ОЛЬГА ВЛАДИМИРОВНА", "inn": "", "category": "Услуги КоллЦентра"}, {"counterparty": "ООО Яндекс", "inn": "", "category": "Рекламный бюджет Яндекс Директ"}, {"counterparty": "Цымбалист Владимир Ильич", "inn": "", "category": "Ремонт и обслуживание оборудования"}, {"counterparty": "ООО ИннПроГ", "inn": "", "category": "Ремонт и обслуживание оборудования"}, {"counterparty": "ООО СТД ПЕТРОВИЧ", "inn": "", "category": "Ремонт и обслуживание помещений"}, {"counterparty": "ПАО Сбербанк", "inn": "", "category": "Ремонт и обслуживание помещений"}, {"counterparty": "ИП Гараба Валериу Василе", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ИП БОЙЦОВ АЛЕКСАНДР ЛЕОНИДОВИЧ", "inn": "", "category": "Ремонт и обслуживание помещений"}, {"counterparty": "Секин Алексей Викторович", "inn": "", "category": "Ремонт и обслуживание помещений"}, {"counterparty": "ФБУЗ ЦЕНТР ГИГИЕНЫ И ЭПИДЕМИОЛОГИИ В ГОРОДЕ САНКТ-ПЕТЕРБУРГЕ И ЛЕНИНГРАДСКОЙ ОБЛАСТИ", "inn": "", "category": "Санэпидемиологические услуги"}, {"counterparty": "ООО СКАЙНЭТ", "inn": "", "category": "Связь и интернет"}, {"counterparty": "ООО МАНГО ТЕЛЕКОМ", "inn": "", "category": "Связь и интернет"}, {"counterparty": "ПАО МегаФон", "inn": "", "category": "Связь и интернет"}, {"counterparty": "ООО ПОИГ", "inn": "", "category": "Связь и интернет"}, {"counterparty": "ПАО МТС", "inn": "", "category": "Связь и интернет"}, {"counterparty": "ООО ЯНДЕКС.ТАКСИ", "inn": "", "category": "Такси"}, {"counterparty": "Соколова Елена Борисовна СЗ", "inn": "", "category": "Услуги КоллЦентра"}, {"counterparty": "ООО БЛЕСК", "inn": "", "category": "Услуги прачечной и стирка текстиля"}, {"counterparty": "ООО ЭЛСИ-НТ", "inn": "", "category": "Услуги программистов (доработка / поддержка сайта и пр.)"}, {"counterparty": "ИП Михайлов Дмитрий Сергеевич", "inn": "", "category": "SEO Яндекс"}, {"counterparty": "ООО ТЕХНОПРОЕКТЪ", "inn": "", "category": "Утилизация мед отходов"}, {"counterparty": "ООО СОРОС", "inn": "", "category": "Утилизация мед отходов"}, {"counterparty": "ИП Мухин Владислав", "inn": "", "category": "Юридические услуги"}, {"counterparty": "ООО ЛИГАЛ АП", "inn": "", "category": "Юридические услуги"}, {"counterparty": "ИП МУХИН В. М.", "inn": "", "category": "Юридические услуги"}, {"counterparty": "Ермолова Екатерина Геннадьевна", "inn": "", "category": "Прочие маркетинговые расходы"}, {"counterparty": "ООО ЛЕНПЕЧАТИ", "inn": "", "category": "Прочие административные расходы"}, {"counterparty": "ООО ТЕЛЕМИР", "inn": "", "category": "Прочие маркетинговые расходы"}, {"counterparty": "ООО КОМАНДА Ф5", "inn": "", "category": "Лицензии и ПО"}, {"counterparty": "БАЙ ИВАН ИВАНОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЛАПО РОМАН АЛЕКСАНДРОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ИВАНОВ СЕРГЕЙ ИВАНОВИЧ//2190830970610//188832, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВЫБОРГСКИЙ Р-Н, П", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ТОКОВ РОМАН МИХАЙЛОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Ведяпина София Леонидовна Р/С 40817810905904973338", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕГОРОВА ЛАРИСА ВАЛЕНТИНОВНА//2192793142831//188751, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ПРИОЗЕРСКИЙ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "БАЙ ИВАН ИВАНОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ВАСИЛЬЕВ ДМИТРИЙ НИКОЛАЕВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПОЛЬГОВА ТАТЬЯНА ГЕННАДЬЕВНА//2194470184832//195112, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АГЕЕВ АЛЕКСЕЙ МИХАЙЛОВИЧ//2195679892023//188676, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ Р-", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Степанова Дарья Сергеевна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Замятина Екатерина Валерьевна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КРУГЛОВА ЗОЯ ЕВГЕНЬЕВНА//2195645505761//194214, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУР", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СТУПАК НЕЛЛИ СЕРГЕЕВНА//2195606601254//191124, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МИРЗОЯН ИРИНА РОБЕРТОВНА//2195523023436//188730, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ПРИОЗЕРСКИЙ Р-Н", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МАРТЫНЕНКО ЕВГЕНИЙ СЕРГЕЕВИЧ//2194843781617//188801, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВЫБОРГСКИЙ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "НОВИКОВ ТИМОФЕЙ МАРКОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Шипулин Игорь Геннадьевич//191186, Россия, г Санкт-Петербург, пр-кт Невский, д. 23, кв. 24//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "БИЗЯНОВ АРКАДИЙ АЛЕКСАНДРОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Маслов Владимир Валентинович//188802, Россия, обл Ленинградская, р-н Выборгский, г Выборг, ул Гагарина, д. 25, кв. 3//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МАКАРЕНКО АЛЕКСАНДР ВЛАДИМИРОВИЧ//2198091596630//188680, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛО", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МАКАРЕНКО АЛЕКСАНДР ВЛАДИМИРОВИЧ//2198089027132//188680, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛО", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ДЕРЯБКИН ЕВГЕНИЙ ЮРЬЕВИЧ//2198081455943//187330, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, КИРОВСКИЙ Р-Н,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЖУРАВЛЕВ РОМАН МИХАЙЛОВИЧ//2197979962381//198329, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КУТЬИНА СВЕТЛАНА ОЛЕГОВНА//2197659187455//197372, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КОРНЕВА ЛЮБОВЬ СЕИТОВНА//2197645541710//188640, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ Р-Н", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Мелькишев Сергей Валентинович", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ТУЗИКОВ ЮРИЙ ВЛАДИМИРОВИЧ//2195755752570//197372, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ФЕДОРОВА ЕКАТЕРИНА ИВАНОВНА//2198305860912//194021, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЛАРИНА ЛИАНА ТЕВОСОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ВАСИЛЬЕВА ЮЛИЯ ОЛЕГОВНА//2198293097443//188753, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ПРИОЗЕРСКИЙ Р-Н,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ДАВЫДОВ АЛЕКСЕЙ ВИКТОРОВИЧ//2198722033018//115516, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ СЕВАНСКАЯ, Д 58 КВ 104//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КУЗЬМИН РОМАН ВИКТОРОВИЧ//2199193521525//199397, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ БЕРИНГА, Д 36 КВ 56//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЛУЦЕНКО ЕВГЕНИЯ ВАДИМОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КУЗЬМИН РОМАН ВИКТОРОВИЧ//2199187604300//199397, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ БЕРИНГА, Д 36 КВ 56//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Золина Татьяна Ивановна//2198794451510//198260, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ СОЛДАТА КОРЗУНА, Д 26 КВ 98//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЛУКОВСКАЯ ЕЛЕНА АЛЕКСАНДРОВНА//2198950451089//197082, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ТУРИСТСКАЯ, Д 30 КОРП 1 КВ 752//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КОТОВА АЛЕКСАНДРА АНДРЕЕВНА//188662, РОССИЯ, ОБЛ ЛЕНИНГРАДСКАЯ, Р-Н ВСЕВОЛОЖСКИЙ, Г МУРИНО, УЛ ОБОРОННАЯ,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//БЕЛОУСОВ КОНСТАНТИН ЮРЬЕВИЧ//2199305463597//193231, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АРИСТОВ АЛЕКСАНДР ГЕННАДЬЕВИЧ//2200006300347//198184, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ОСТРОВ КАНОНЕРСКИЙ, Д 9 КВ 3//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПИЗИН ДЕНИС ВЛАДИМИРОВИЧ//2199652690471//117628, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ СТАРОБИТЦЕВСКАЯ, Д 15 КОРП 1 КВ 283//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АФАНАСЬЕВ АНДРЕЙ ВИКТОРОВИЧ//2200876555645//195299, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ ГРАЖДАНСКИЙ, Д 115 КОРП 3 КВ 28//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ШАЛИМОВА НАТАЛЬЯ ОЛЕГОВНА//193312, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, УЛ КОЛЛОНТАЙ, Д. 29, КОРП. 1, КВ. 160//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ШАЛИМОВА НАТАЛЬЯ ОЛЕГОВНА//193312, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, УЛ КОЛЛОНТАЙ, Д. 29, КОРП. 1, КВ. 160//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Рябинина Екатерина Эдуардовна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПЯТОЧЕНКО АНДРЕЙ НИКОЛАЕВИЧ//192177, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ ШЛИССЕЛЬБУРГСКИЙ, Д. 23, КВ. 121//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Алексеев Владимир Георгиевич//2200983324969//196605, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г ПУШКИН, УЛ ВЯЧЕСЛАВА ШИШКОВА, Д 24 КВ 69//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ГЛУШКОВ ДМИТРИЙ ЛЕОНИДОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "БАЙ ИВАН ИВАНОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕГОРОВА ЛАРИСА ВАЛЕНТИНОВНА//2200556897879//188751, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ПРИОЗЕРСКИЙ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ТАРАНЬ ВИТАЛИЙ ВЛАДИМИРОВИЧ//2201575123797//188423, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВОЛОСОВСКИЙ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЛЬВОВ Г А Г А//2201511373387////", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ГРИГОРЬЕВА ЕЛЕНА БОРИСОВНА//188663, РОССИЯ, ОБЛ ЛЕНИНГРАДСКАЯ, Р-Н ВСЕВОЛОЖСКИЙ, ГП КУЗЬМОЛОВСКИЙ, УЛ ЖЕЛ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ТИХОМИРОВА ЛЮДМИЛА НИКОЛАЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Гасюк Светлана Александровна//40817810300008113927//643, Санкт-Петербург, Лёни Голикова, 35, 208//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ВОЛОДЬКИНА ЕЛЕНА АЛЕКСЕЕВНА//198207, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, УЛ ЗИНЫ ПОРТНОВОЙ, Д. 1/3, КВ. 2//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПИСАРЕВА РИММА НИКОЛАЕВНА//2201862711659//198207, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ ДАЧНЫЙ, Д 4 КОРП 2 КВ 196//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Гасюк Светлана Александровна//40817810300008113927//643, Санкт-Петербург, Лёни Голикова, 35, 208//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СИТКИН ВЛАДИМИР СЕРГЕЕВИЧ//2201791863737//198259, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ПОГРАНИЧНИКА ГАРЬКАВОГО, Д 40 КОРП 6 КВ 66//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//САВИНОВА ЛЮДМИЛА ИВАНОВНА//2201763110411//152915, РОССИЯ, ЯРОСЛАВСКАЯ ОБЛ, РЫБИНСКИЙ Р-Н, Г РЫБИНСК, УЛ ЮБИЛЕЙНАЯ, Д 14 КВ 43//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КОРОТКОВ НИКИТА АНДРЕЕВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КОЧАРЯН ИНГА ЭНРИКОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//САВИНОВА ЛЮДМИЛА ИВАНОВНА//2201705662258//152915, РОССИЯ, ЯРОСЛАВСКАЯ ОБЛ, РЫБИНСКИЙ Р-Н, Г РЫБИНСК, УЛ ЮБИЛЕЙНАЯ, Д 14 КВ 43//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ОРЕХОВА ЕКАТЕРИНА АЛЕКСАНДРОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ШАРАЙ ГАЛИНА ВЛАДИМИРОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ВАСИЛЬЧЕНКО АЛЕКСЕЙ НИКОЛАЕВИЧ//115114, РОССИЯ, Г МОСКВА, НАБ ДАНИЛОВСКАЯ, Д. 6, КОРП. 2//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Курганова Галина Сергеевна//2203655653455//190121, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ЛАБУТИНА, Д 30 КВ 7//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ ЧЕРЕДНИКОВ СЕРГЕЙ АЛЕКСАНДРОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АРИСТОВ АЛЕКСАНДР ГЕННАДЬЕВИЧ//2202253446656//198184, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ОСТРОВ КАНОНЕРСКИЙ, Д 9 КВ 3//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Базырин Евгений Александрович", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Сухарев Александр Витальевич//2202446482091//191025, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ВОССТАНИЯ, Д 8 ЛИТ А КВ 18//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//РОЗИН АННА АНАТОЛЬЕВНА//2203802024623//192102, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ ВОЛКОВСКИЙ, Д 128 КВ 36//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "БОРОДИНА КАПИТАЛИНА ИВАНОВНА//195276,Санкт-Петербург г,,,,Тимуровская ул,10,2,10//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЯШИНА ЕЛЕНА ЮРЬЕВНА//2202759706500//199397, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ КОРАБЛЕСТРОИТЕЛЕЙ, Д 37 КВ 357//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Шевчук Елена Михайловна//188640, Россия, обл Ленинградская, р-н Всеволожский, г Всеволожск, ул Баркановская, д. 121//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//РАДЧУК ТАТЬЯНА ЛЕОНИДОВНА//2203515367361//188741, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ПРИОЗЕРСКИЙ Р-", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Киселева Светлана Владимировна Р/С 40817810007350085422", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СЕМЕНОВ КОНСТАНТИН АНАТОЛЬЕВИЧ//2203455042704//188650, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖС", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЗВЕНЯЦКАЯ ОЛЬГА НИКОЛАЕВНА//2201850053215//186430, РОССИЯ, КАРЕЛИЯ РЕСП, СЕГЕЖСКИЙ Р-Н, ПГТ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//НИКОЛАЕВА ЮЛИЯ СЕРГЕЕВНА//2201875969297//195267, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//БАЙЛОВА ТАТЬЯНА ГУРЬЕВНА//2202381000762//187000, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ТОСНЕНСКИЙ Р-Н,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ДУБОВА НИНА НИКОЛАЕВНА//2202700872183//194358, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//САЮНОВ АЛЕКСАНДР АЛЕКСЕЕВИЧ//2203727530045//187010, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ТОСНЕНСКИЙ Р", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ИЛЬЮШИНА ОЛЬГА ИВАНОВНА Р/С 40817810407950193880", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КОЗЛОВА НАТАЛЬЯ НИКОЛАЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ИВАНЧУК МАРГАРИТА ФРАНКЛИНОВНА//2203638822236//180016, РОССИЯ, ПСКОВСКАЯ ОБЛ, Г ПСКОВ, ПР-К", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КРЕЙС ЕКАТЕРИНА БОРИСОВНА//2203611754246//197082, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ИВАНОВА НАТАЛЬЯ АЛЕКСЕЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ГОРШКОВА СВЕТЛАНА ГЕННАДЬЕВНА//2201824262685//188760, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ПРИОЗЕРСКИ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КРЕЙС ЕКАТЕРИНА БОРИСОВНА//2202877309192//197082, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КАЮКОВА ЮЛИЯ НИКОЛАЕВНА//2203592170411//107370, РОССИЯ, МОСКВА Г, Г МОСКВА, Б-Р МАРШАЛА РОКОССОВСКОГО, Д 6 КОРП 1 КВ 1511//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "МАСАЛЬСКАЯ ЛАРИСА СЕРГЕЕВНА Р/С 40817810005682415597", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ФЕДОРОВА ЕКАТЕРИНА ИВАНОВНА//2204490021644//194021, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ГОРЕЛОВА АННА СЕРГЕЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//НИКИТИНА КСЕНИЯ ГРИГОРЬЕВНА//2204280196734//194223, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Есипович Екатерина Геннадьевна Р/С 40817810407130062760", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЭККЕЛЬ ЕКАТЕРИНА ВИКТОРОВНА//2203860583954//196657, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г КОЛПИНО, У", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Пожевитько Анастасия Николаевна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ГРАНОВ ВЛАДИМИР АЛЕКСЕЕВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//САДЧИКОВА МАРИНА НИКОЛАЕВНА//2203901192249//188664, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЛОГИНОВА АНЖЕЛА ВАЛЕРЬЕВНА//2203762819112//188800, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВЫБОРГСКИЙ Р-", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//САДЧИКОВА МАРИНА НИКОЛАЕВНА//2203901600217//188664, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КОРОТКОВА ИРИНА АЛЕКСАНДРОВНА//2203842628279//195299, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕРМАКОВА АННА ЮРЬЕВНА//2204288555011//188640, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ Р-Н, Г ВСЕВОЛОЖСК, УЛ ЛЕНИНГРАДСКАЯ, Д 11 КВ 117//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АРИСТОВ АЛЕКСАНДР ГЕННАДЬЕВИЧ//2204530789080//198184, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ОСТРОВ КАНОНЕРСКИЙ, Д 9 КВ 3//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КУЗЬМИН РОМАН ВИКТОРОВИЧ//2204561532425//199397, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ БЕРИНГА, Д 36 КВ 56//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КРЕСТОВ АРТЕМ АЛЕКСАНДРОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ООО ПЛ-ТЕХНО", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Родина Жанна Олеговна//2204238981956//187114, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, КИРИШСКИЙ Р-Н, Г КИРИШИ, УЛ ЭНЕРГЕТИКОВ, Д 54 КВ 15//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЕФРЕМОВА ЮЛИЯ СЕРГЕЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "НИКОЛАЕВ КОНСТАНТИН ВЛАДИМИРОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "НИКОЛАЕВ КОНСТАНТИН ВЛАДИМИРОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ШИПУЛИН ИГОРЬ ГЕННАДЬЕВИЧ//191186, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ НЕВСКИЙ, Д. 23, КВ. 24//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//РЫЛОВА ВИКТОРИЯ ВЛАДИМИРОВНА//2205148229193//195298, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АНИСКЕВИЧ АННА ПЕТРОВНА//2205090279191//195196, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУР", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КРУГЛИКОВА ОЛЬГА ВИКТОРОВНА//195279, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ ЭНТУЗИАСТОВ, Д. 40, КОРП. 1, КВ. 43", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КОРШУНОВА ГАЛИНА ПЕТРОВНА//187031,Ленинградская обл,Тосненский р-н,,Тарасово д,,21,,58//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Есипович Екатерина Геннадьевна Р/С 40817810407130062760", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//БЫСТРОВА ИРИНА СЕРГЕЕВНА//2205043197045//187330, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, КИРОВСКИЙ Р-Н,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СЕМЕНОВА ОЛЬГА АНДРЕЕВНА//2205039282653//193168, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ШОШИНА СОФЬЯ ЮРЬЕВНА//2205027056765//188322, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ГАТЧИНСКИЙ Р-Н, Г К", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЗАХАРОВА ЖАННА ИГОРЕВНА//2205187009217//188930, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВЫБОРГСКИЙ Р-Н,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПОГОРИЛЯК МАРИЯ АНДРЕЕВНА//2205086248182//188910, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВЫБОРГСКИЙ Р-Н", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Климин Анастасий Игоревич//2205294947253//197348, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ПОЛЕВАЯ САБИРОВСКАЯ, Д 47 КОРП 2 ЛИТ А КВ 133//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Рябинина Екатерина Эдуардовна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Тихов Вячеслав Анатольевич//2205126901611//197375, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ 1-Я УТИНАЯ, Д 28 КВ 256//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КАРПОВА АНТОНИНА ПАВЛОВНА//2205168496621//188760, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ПРИОЗЕРСКИЙ Р-Н, Г ПРИОЗЕРСК, УЛ ГАГАРИНА, Д 18 КВ 50//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Климин Анастасий Игоревич//2205296456991//197348, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ПОЛЕВАЯ САБИРОВСКАЯ, Д 47 КОРП 2 ЛИТ А КВ 133//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЧУПАХИНА МУЗА ИГОРЕВНА//188668,Ленинградская обл,Всеволожский р-н,,Лесколово д,Красноборская ул,13,,35//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЖУРАВЛЕВА НАТАЛЬЯ АЛЕКСАНДРОВНА//2205307841344//199004, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ЛИНИЯ 3-Я В.О., Д 38 КВ 10//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "НИКИТИНА АННА АЛЕКСЕЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ДАВЫДОВ АЛЕКСЕЙ ВИКТОРОВИЧ//2205240429775//115516, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ СЕВАНСКАЯ, Д 58 КВ 104//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "МАНСУРОВ ТИМУР РУСТЭМОВИЧ Р/С 40817810704780289036", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КОРСАКОВ МИХАИЛ ВИКТОРОВИЧ//2205893095904//188296, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ЛУЖСКИЙ Р-Н,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "МАНСУРОВ ТИМУР РУСТЭМОВИЧ Р/С 40817810704780289036", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АГЕЕВ АЛЕКСЕЙ МИХАЙЛОВИЧ//2205770087533//188676, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ Р-", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Провоторов Дмитрий Юрьевич (ИП)", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "БАЙ ИВАН ИВАНОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Комитет финансов ЛО (ЛОГКУ ЦЕНТР СОЦИАЛЬНОЙ ЗАЩИТЫ НАСЕЛЕНИЯ)", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КОНДАКОВА ИРИНА ВЯЧЕСЛАВОВНА//2205880085053//187000, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ТОСНЕНСКИЙ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ТАРАСОВА ЕЛИЗАВЕТА НИКОЛАЕВНА//2205838489437//195220, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ШМИГИРИЛОВА ИННА ВЯЧЕСЛАВОВНА//188800, РОССИЯ, ОБЛ ЛЕНИНГРАДСКАЯ, Р-Н ВЫБОРГСКИЙ, Г ВЫБОРГ, УЛ МОРСКАЯ НА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "БИЗЯНОВ АРКАДИЙ АЛЕКСАНДРОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ШАРКАНОВА АЛЕКСАНДРА ЮРЬЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МАЙЕР СВЕТЛАНА КОНСТАНТИНОВНА//2205740477472//188800, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВЫБОРГСКИЙ Р-Н, Г ВЫБОРГ, УЛ САДОВАЯ, Д 11 КВ 60//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАВЛЕНКО ОЛЕГ ВЛАДИМИРОВИЧ//190020 САНКТ-ПЕТЕРБУРГ ПР-КТ НАРВСКИЙ д 25 кв 23//40817810850207090363//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ДОРОНИН ДМИТРИЙ ВАЛЕРЬЕВИЧ//2205591940359//195220, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ БУТЛЕРОВА, Д 26 КВ 64//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Агафонова Елена Владимировна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "АМЕНЮКОВА ТАТЬЯНА ИГОРЕВНА//196634, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, П ШУШАРЫ, УЛ ЦЕНТРАЛЬНАЯ (ТЕР ДЕТСКОСЕЛЬСК", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ВИНОГРАДОВА НАТАЛЬЯ ГЕННАДЬЕВНА//2205935938529//193318, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ДЖОНА РИДА, Д 4 КОРП 1 КВ 63//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Стрельцин Игорь Юрьевич//2206021902060//198328, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ДОБЛЕСТИ, Д 18 КОРП 1 ЛИТ В КВ 212//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Комитет финансов ЛО (ЛОГКУ ЦЕНТР СОЦИАЛЬНОЙ ЗАЩИТЫ НАСЕЛЕНИЯ)", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "НАБИЕВ ИЛХАМ АЛИФ ОГЛЫ (ИП)", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПРОХОРОВА ИРИНА ЕВГЕНЬЕВНА//2206023032480//115193, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ САЙКИНА, Д 7 КВ 159//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Галанцев Константин Владимирович Р/С 40817810804010314131", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "БАЙ ИВАН ИВАНОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "НОВИКОВ ТИМОФЕЙ МАРКОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕФИМОВА НАДЕЖДА ВИКТОРОВНА//2206669552397//188802, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВЫБОРГСКИЙ Р-", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ТУЗИКОВ ЮРИЙ ВЛАДИМИРОВИЧ//2206051458967//197372, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ТРЕТЬЯКОВА ТАТЬЯНА АНТОНОВНА//2206048628245//188640, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ТОКОВ РОМАН МИХАЙЛОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Индивидуальный предприниматель Таланкин Дмитрий Владимирович", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ВАКУРОВА ТАТЬЯНА ИВАНОВНА//2206573007177//191040, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ КОЛОМЕНСКАЯ, Д 15/17//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ГРУЗДЕВА ЛАДА АЛЕКСАНДРОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ КОЗЛОВ ИЛЬЯ СЕРГЕЕВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЧУМАКОВА ЕЛЕНА ВИКТОРОВНА//2206382075360//105264, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ ВЕРХНЯЯ ПЕРВОМАЙСКАЯ, Д 35 КВ 1,37//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ДУБИНЧИНА СВЕТЛАНА ВИКТОРОВНА//2206561036109//188235, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ЛУЖСКИЙ Р-Н, Г ЛУГА, УЛ СВОБОДЫ, Д 4 КВ 4//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЩЁЛОКОВА ЮЛИЯ АЛЕКСАНДРОВНА//2206591384468//191123, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ФУРШТАТСКАЯ, Д 41 КВ 2//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЛИСОВСКИЙ ИГОРЬ БОРИСОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕРМАКОВА АННА ЮРЬЕВНА//2208230335777//188640, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ Р-Н, Г ВСЕВОЛОЖСК, УЛ ЛЕНИНГРАДСКАЯ, Д 11 КВ 117//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Рябинина Екатерина Эдуардовна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АРИСТОВ АЛЕКСАНДР ГЕННАДЬЕВИЧ//2208219064077//198184, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ОСТРОВ КАНОНЕРСКИЙ, Д 9 КВ 3//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ТОЛЧЕНОВА ОЛЬГА АЛЕКСАНДРОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕНДЗА СВЕТЛАНА АНАТОЛЬЕВНА//2206974333274//197198, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ СЪЕЗЖИНСКАЯ, Д 24 КВ 10//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МЕДВЕДЕВА СВЕТЛАНА МИХАЙЛОВНА//2208239064915//119331, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ КРАВЧЕНКО, Д 8 КВ 349//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Мачнева Мария Евгеньевна//2208424095194//115580, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ КУСТАНАЙСКАЯ, Д 2 КОРП 1 КВ 189//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Среднерусский банк Сбербанка России", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АЛЕНЦИНА АННА ПЕТРОВНА//2208240708032//141032, РОССИЯ, МОСКОВСКАЯ ОБЛ, Г МЫТИЩИ, УЛ БОРОВАЯ (ТЕР СПО СЕВЕРНОЕ), Д 12А//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КОСЯЧЕНКО ЯНА ВАЛЕРЬЕВНА//2208269499663//188734, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ПРИОЗЕРСКИЙ Р-Н", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МИГУНОВА ЛЮДМИЛА ИВАНОВНА//2207083549680//188645, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ Р", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ТЕРЕШИНА АННА НИКОЛАЕВНА//2206843819688//188653, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ Р-", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КУТЬИНА СВЕТЛАНА ОЛЕГОВНА//2207127983626//197372, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КУТЬИНА СВЕТЛАНА ОЛЕГОВНА//2207529981278//197372, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Ухова Олеся Дмитриевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Журавлева Таисия Петровна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Великова Ирина Вячеславовна", "inn": "", "category": "Зарплата вспомогательного персонала"}, {"counterparty": "ПАО СБЕРБАНК//ЖУРАВЛЕВ РОМАН МИХАЙЛОВИЧ//2208882085070//198329, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ФЕДОРОВА ЕКАТЕРИНА ИВАНОВНА//2208556150467//194021, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КЛЮШКИН ГЕННАДИЙ ГЕННАДИЕВИЧ//2208811495247//105082, РОССИЯ, МОСКВА Г, Г МОСКВА, НАБ РУБЦОВСКАЯ, Д 2 КВ 1//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МИЛЕВА ИРИНА АНАТОЛЬЕВНА//2208717843283//140010, РОССИЯ, МОСКОВСКАЯ ОБЛ, Г ЛЮБЕРЦЫ, ПР-КТ ГАГАРИНА, Д 24 КОРП 2 КВ 204//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КЛЮШКИН ГЕННАДИЙ ГЕННАДИЕВИЧ//2208809893934//105082, РОССИЯ, МОСКВА Г, Г МОСКВА, НАБ РУБЦОВСКАЯ, Д 2 КВ 1//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ТРОЩЕНКО СВЕТЛАНА ЮРЬЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПУРГИНА ЛИДИЯ ИВАНОВНА//2209669799725//199155, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ПЕР ДЕКАБРИСТОВ, Д 8 КВ 92 ОФ 92//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПИЗИН ДЕНИС ВЛАДИМИРОВИЧ//2209399012305//117628, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ СТАРОБИТЦЕВСКАЯ, Д 15 КОРП 1 КВ 283//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ШИРУКОВА СВЕТЛАНА СЕРГЕЕВНА//2209671258100//141342, РОССИЯ, МОСКОВСКАЯ ОБЛ, СЕРГИЕВ ПОСАД Г, РП БОГОРОДСКОЕ, Д 55 КВ 21//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Судовых Илья Викторович//2209435835857//129090, РОССИЯ, МОСКВА Г, Г МОСКВА, ПЕР ВАСНЕЦОВА, Д 15 КВ 49//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КУТЬИНА СВЕТЛАНА ОЛЕГОВНА//2209548681136//197372, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ФЕДОРОВА ЕКАТЕРИНА ИВАНОВНА//2209485557203//194021, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АНДРИАНОВ ВЛАДИМИР НИКОЛАЕВИЧ//2209324558439//195067, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ИВАНОВ ВЛАДИМИР МИХАЙЛОВИЧ//188802 ЛЕНИНГРАДСКАЯ ВЫБОРГСКИЙ Г ВЫБОРГ УЛ РУБЕЖНАЯ д 44 кв 58//40817810250164277638//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Курнакова Наталья Федоровна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "ООО ЭКСАРИС", "inn": "", "category": "Закупка бытовой химии"}, {"counterparty": "ПАО СБЕРБАНК//ДМИТРЯКОВ ПЕТР ВЛАДИМИРОВИЧ//2209981590688//111673, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ САЛТЫКОВСКАЯ, Д 7 КОРП 1 КВ 83//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "АХМАТОВА УЛЬЯНА ВАДИМОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КОЛЧЕВА ЛЮДМИЛА АЛЕКСАНДРОВНА//2210154904562//188300, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ГАТЧИНСКИЙ Р-Н, Г ГАТЧИНА, УЛ ИЗОТОВА, Д 6 КВ 40//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//БОБРОВА ИРИНА ОЛЕГОВНА//2210070054865//195257, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//БОБРОВА ИРИНА ОЛЕГОВНА//2210069115479//195257, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//БОБРОВА ИРИНА ОЛЕГОВНА//2210067976157//195257, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ФЕДОРОВА ЕКАТЕРИНА ИВАНОВНА//2210029549585//194021, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕГОРОВА НАДЕЖДА ПЕТРОВНА//2209980252938//194356, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КАРЕТНИКОВ ДМИТРИЙ СЕРГЕЕВИЧ//192281, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, УЛ КУПЧИНСКАЯ, Д. 17, КОРП. 4, ЛИТЕРА А,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ГЛАДКОВА НАТАЛЬЯ СЕРГЕЕВНА//2209723289488//188804, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВЫБОРГСКИЙ Р-", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЛЕОНТЬЕВ АЛЕКСЕЙ НИКОЛАЕВИЧ//2210148146911//187026, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ТОСНЕНСКИЙ Р", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ВАРТАНОВА СВЕТЛАНА НИКОЛАЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Бунеева Анна Михайловна//2210680921313//198095, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ МЕТРОСТРОЕВЦЕВ, Д 5 КВ 60//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АРИСТОВ АЛЕКСАНДР ГЕННАДЬЕВИЧ//2210770451654//198184, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ОСТРОВ КАНОНЕРСКИЙ, Д 9 КВ 3//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КОРОЛЕВА НАТАЛИЯ ВАСИЛЬЕВНА//196240, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, УЛ ВАРШАВСКАЯ, Д. 67, КВ. 68//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "МАКОВЕЕВА НАТАЛИЯ ЛЕОНИДОВНА//197372, РОССИЯ, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ АВИАКОНСТРУКТОРОВ, Д. 3, КОРП. 2,", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "СОЛОВЕЙ ДИНА ВИКТОРОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "КОЧКИНА ТАТЬЯНА ВАСИЛЬЕВНА//391565, РОССИЯ, ОБЛ РЯЗАНСКАЯ, Р-Н ШАЦКИЙ, С ДЕМИДОВО, УЛ ЗЕЛЁНАЯ, Д. 8, КВ.", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Ложкина Надежда Николаевна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "ип Мушинский Константин Николаевич", "inn": "", "category": "Прочие маркетинговые расходы"}, {"counterparty": "ПЯТОЧЕНКО АНДРЕЙ НИКОЛАЕВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЛУКОВСКАЯ ЕЛЕНА АЛЕКСАНДРОВНА//2191544279487//197082, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ТУРИСТСКАЯ, Д 30 КОРП 1 КВ 752//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МИФТАХОВА ЕКАТЕРИНА ВАЛЕРЬЕВНА//2191616132462//192241, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, Ш ЮЖНОЕ, Д 53 КОРП 5 ЛИТ А КВ 15//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Сухарев Александр Витальевич//2191424005769//191025, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ВОССТАНИЯ, Д 8 ЛИТ А КВ 18//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЯШИНА ЕЛЕНА ЮРЬЕВНА//2191211500618//199397, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ КОРАБЛЕСТРОИТЕЛЕЙ, Д 37 КВ 357//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Бойцова Светлана Александровна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СОЛОВЬЕВ СТАНИСЛАВ ЮРЬЕВИЧ//2194068871166//192171, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ БАБУШКИНА, Д 63 КВ 30//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АРИСТОВ АЛЕКСАНДР ГЕННАДЬЕВИЧ//2192141258669//198184, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ОСТРОВ КАНОНЕРСКИЙ, Д 9 КВ 3//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//РОЗИН АННА АНАТОЛЬЕВНА//2191729836312//192102, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ ВОЛКОВСКИЙ, Д 128 КВ 36//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Орлова Александра Юрьевна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//РОМАНОВА МАЙЯ ГРИГОРЬЕВНА//2192428164731//195269, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ УЧИТЕЛЬСКАЯ, Д 14 КВ 78//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СОЛОВЬЕВ СТАНИСЛАВ ЮРЬЕВИЧ//2194075629710//192171, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ БАБУШКИНА, Д 63 КВ 30//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЛУКОВСКАЯ ЕЛЕНА АЛЕКСАНДРОВНА//2194951783022//197082, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ТУРИСТСКАЯ, Д 30 КОРП 1 КВ 752//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПАВЛЕНКО ОЛЬГА ОЛЕГОВНА//2194917461788//190020, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ НАРВСКИЙ, Д 25 КВ 23//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕНДЗА СВЕТЛАНА АНАТОЛЬЕВНА//2194967130898//197198, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ СЪЕЗЖИНСКАЯ, Д 24 КВ 10//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Хавроничев Игорь Валерьевич//2194406848555//198504, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г ПЕТЕРГОФ, ПР-КТ УНИВЕРСИТЕТСКИЙ, Д 8 КВ 150//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АРИСТОВ АЛЕКСАНДР ГЕННАДЬЕВИЧ//2195746573266//198184, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ОСТРОВ КАНОНЕРСКИЙ, Д 9 КВ 3//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СИТКИН ВЛАДИМИР СЕРГЕЕВИЧ//2194984032486//198259, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ПОГРАНИЧНИКА ГАРЬКАВОГО, Д 40 КОРП 6 КВ 66//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЩЁЛОКОВА ЮЛИЯ АЛЕКСАНДРОВНА//2195549488098//191123, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ФУРШТАТСКАЯ, Д 41 КВ 2//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЛУКОВСКАЯ ЕЛЕНА АЛЕКСАНДРОВНА//2198139955322//197082, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ТУРИСТСКАЯ, Д 30 КОРП 1 КВ 752//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СЫРНИКОВ ВАДИМ ВАЛЕНТИНОВИЧ//2196450412930//196641, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, П МЕТАЛЛОСТРОЙ, УЛ ПОЛЕВАЯ, Д 5 КВ 19//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЖУРАВЛЕВА НАТАЛЬЯ АЛЕКСАНДРОВНА//2196374224237//199004, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ЛИНИЯ 3-Я В.О., Д 38 КВ 10//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СЫРНИКОВ ВАДИМ ВАЛЕНТИНОВИЧ//2196451647837//196641, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, П МЕТАЛЛОСТРОЙ, УЛ ПОЛЕВАЯ, Д 5 КВ 19//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "НИКОЛАЕВА КСЕНИЯ ВЕНИАМИНОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МАСЛОВ РУСЛАН ВЛАДИМИРОВИЧ//2192945124226//188670, РОССИЯ, ЛЕНИНГРАДСКАЯ ОБЛ, ВСЕВОЛОЖСКИЙ Р-Н, П РОМАНОВКА, Д 28 КВ 13//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//АЛЕНЦИНА АННА ПЕТРОВНА//2194426040509//141032, РОССИЯ, МОСКОВСКАЯ ОБЛ, Г МЫТИЩИ, УЛ БОРОВАЯ (ТЕР СПО СЕВЕРНОЕ), Д 12А//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Курганова Галина Сергеевна//2197857383369//190121, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ЛАБУТИНА, Д 30 КВ 7//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ВАКУРОВА ТАТЬЯНА ИВАНОВНА//2198281455755//191040, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ КОЛОМЕНСКАЯ, Д 15/17//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПИЗИН ДЕНИС ВЛАДИМИРОВИЧ//2191237898401//117628, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ СТАРОБИТЦЕВСКАЯ, Д 15 КОРП 1 КВ 283//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ХЛЕБНОВ ВЯЧЕСЛАВ ВАСИЛЬЕВИЧ//2191196582904//141195, РОССИЯ, МОСКОВСКАЯ ОБЛ, Г ФРЯЗИНО, УЛ ЛУГОВАЯ, Д 35 КВ 60//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "БАБУРИНА ЕЛЕНА ГЕННАДИЕВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МИЛЕВА ИРИНА АНАТОЛЬЕВНА//2193706545489//140010, РОССИЯ, МОСКОВСКАЯ ОБЛ, Г ЛЮБЕРЦЫ, ПР-КТ ГАГАРИНА, Д 24 КОРП 2 КВ 204//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЧУМАКОВА ЕЛЕНА ВИКТОРОВНА//2193861011288//105264, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ ВЕРХНЯЯ ПЕРВОМАЙСКАЯ, Д 35 КВ 1,37//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Пряхина Маргарита Александровна//2192158187281//117405, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ ДОРОЖНАЯ (В/Ч 3792), Д 56//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЗОЛОТОВ КОНСТАНТИН МИХАЙЛОВИЧ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СКУЗ ОЛЬГА ВАСИЛЬЕВНА//2194746603819//121087, РОССИЯ, МОСКВА Г, Г МОСКВА, ПРОЕЗД БЕРЕГОВОЙ, Д 5А КОРП 6 КВ 12//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "СТЕПАНОВА ОЛЬГА ВЯЧЕСЛАВОВНА//111672, РОССИЯ, Г МОСКВА, УЛ НОВОКОСИНСКАЯ, Д. 47, КВ. 98//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//САВИН ПАВЕЛ АНДРЕЕВИЧ//2198143415408//141103, РОССИЯ, МОСКОВСКАЯ ОБЛ, Г ЩЁЛКОВО, УЛ ГАГАРИНА, Д 4 КВ 25//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ОРЛОВА НАДЕЖДА ВЛАДИМИРОВНА//2196356646033//119620, РОССИЯ, МОСКВА Г, Г МОСКВА, ПР-КТ СОЛНЦ Р/С 30233810642000600001 в ПАО Сбербанк г Москва", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "АО ТЭК СПБ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ИП БУТЫРСКИЙ ИВАН ФЕДОРОВИЧ", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "Игнатова Евгения Александровна (ИП)", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МУРАТОВА ОЛЬГА ПАВЛОВНА//2212360893835//195274, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУР", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МУРАТОВА ОЛЬГА ПАВЛОВНА//2212358902415//195274, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУР", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Муратова Ольга Павловна Р/С 40817810305820054465", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ФЕДОРОВА ЕКАТЕРИНА ИВАНОВНА//2210824104732//194021, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КРУГЛОВА ЗОЯ ЕВГЕНЬЕВНА//2212353276965//194214, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУР", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КРУГЛОВА ЗОЯ ЕВГЕНЬЕВНА//2212351677134//194214, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУР", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Лазарева Елена Валерьевна", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЗАХАРОВА ОЛЬГА МИХАЙЛОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//РОЗИН АННА АНАТОЛЬЕВНА//2213309437911//192102, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ ВОЛКОВСКИЙ, Д 128 КВ 36//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//СХОЛЛЬ-ЭНГБЕРТС ЕЛЕНА НИКОЛАЕВНА//2212916870060//197136, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//КУТЬИНА СВЕТЛАНА ОЛЕГОВНА//2213159598116//197372, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБ", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ВАКУРОВА ТАТЬЯНА ИВАНОВНА//2212096675401//191040, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ КОЛОМЕНСКАЯ, Д 15/17//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Демаков Юрий Александрович", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МЕДВЕДЕВА СВЕТЛАНА МИХАЙЛОВНА//2211506476506//119331, РОССИЯ, МОСКВА Г, Г МОСКВА, УЛ КРАВЧЕНКО, Д 8 КВ 349//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЕРОХИН ЕВГЕНИЙ АНАТОЛЬЕВИЧ//2212427633694//119192, РОССИЯ, МОСКВА Г, Г МОСКВА, ПР-КТ МИЧУРИНСКИЙ, Д 13 КОРП 2 КВ 154//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//БОЧКОВ ДМИТРИЙ ВЯЧЕСЛАВОВИЧ//2212147399512//143913, РОССИЯ, МОСКОВСКАЯ ОБЛ, Г БАЛАШИХА, Б-Р НЕСТЕРОВА (МКР АВИАТОРОВ), Д 2 КВ 37//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//МИФТАХОВА ЕКАТЕРИНА ВАЛЕРЬЕВНА//2212531105154//192241, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, Ш ЮЖНОЕ, Д 53 КОРП 5 ЛИТ А КВ 15//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ПАВЛЕНКО ОЛЬГА ОЛЕГОВНА//2211499043018//190020, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, ПР-КТ НАРВСКИЙ, Д 25 КВ 23//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Сухарев Александр Витальевич//2212036042343//191025, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ВОССТАНИЯ, Д 8 ЛИТ А КВ 18//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ЖУРАВЛЕВА НАТАЛЬЯ АЛЕКСАНДРОВНА", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//ЯШИНА ЕЛЕНА ЮРЬЕВНА//2211627334365//199397, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ КОРАБЛЕСТРОИТЕЛЕЙ, Д 37 КВ 357//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Климин Анастасий Игоревич//2211137342793//197348, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ПОЛЕВАЯ САБИРОВСКАЯ, Д 47 КОРП 2 ЛИТ А КВ 133//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "ПАО СБЕРБАНК//Цейтлин Павел Моисеевич//2212113954601//196158, РОССИЯ, САНКТ-ПЕТЕРБУРГ Г, Г САНКТ-ПЕТЕРБУРГ, УЛ ПУЛКОВСКАЯ, Д 6 КОРП 4 КВ 137//", "inn": "", "category": "Проживание (соц)"}, {"counterparty": "Тарасов Евгений Александрович", "inn": "", "category": "Прочие маркетинговые расходы"}, {"counterparty": "ООО ПОЖ-ИНТЕР", "inn": "", "category": "Противопожарная безопасность"}, {"counterparty": "ООО РУСХОЛДИНГ", "inn": "", "category": "Представительские расходы"}, {"counterparty": "ООО НЕОТЕК", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ООО ЦЕНТР ДЕЗИНФЕКЦИИ ГОРОДСКОГО ОКРУГА ЩЁЛКОВО", "inn": "", "category": "Санэпидемиологические услуги"}, {"counterparty": "Следзюк Мария Владимировна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "ИП КОВАЛЬ ВАЛЕРИЙ ИЛЬИЧ", "inn": "", "category": "Прочие маркетинговые расходы"}, {"counterparty": "ООО Деловые Линии", "inn": "", "category": "Прочая доставка"}, {"counterparty": "ООО ФУДКОМПЛЕКС", "inn": "", "category": "Закупка продуктов питания"}, {"counterparty": "ООО ФИРМА ХОГАРТ", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО РВЦ ПРИБРЕЖНЫЙ", "inn": "", "category": "Внутреннее перемещение"}, {"counterparty": "ООО ДНС РИТЕЙЛ", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "Зайчиков Алексей Алексеевич", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Петушкова Светлана Утбасаровна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "ИП Криворотов Александр Николаевич", "inn": "", "category": "Ремонт и обслуживание оборудования"}, {"counterparty": "ИП Семенова Евгения Михайловна", "inn": "", "category": "Коммунальные услуги"}, {"counterparty": "ООО МЕТАЛЛИЧЕСКАЯ МЕБЕЛЬ", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ООО ДГМ", "inn": "", "category": "Ремонт и обслуживание помещений"}, {"counterparty": "ООО СМБ-СЕРВИС", "inn": "", "category": "Прочие маркетинговые расходы"}, {"counterparty": "ООО ТОРУС", "inn": "", "category": "Закупка бытовой химии"}, {"counterparty": "ИП Виноградов Антон Владимирович", "inn": "", "category": "Закупка бытовой химии"}, {"counterparty": "Воеводина Анна Александровна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "ООО ГОЛЬФСТРИМ ОХРАННЫЕ СИСТЕМЫ", "inn": "", "category": "Охранные услуги"}, {"counterparty": "Филиал Северо-Западный ОООДНС Ритейл", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ИП КУРГАЛОВ ВАСИЛИЙ АНАТОЛЬЕВИЧ", "inn": "", "category": "Ведение Яндекс Директ"}, {"counterparty": "Мазилина Татьяна Алексеевна", "inn": "", "category": "Аренда офиса"}, {"counterparty": "Столярова Елена Александровна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "Дзюбак Оксана Ервантовна", "inn": "", "category": "Зарплата производственного персонала"}, {"counterparty": "ООО МЕТРОЗ ЗАПУСКИНЖИНИРИНГ", "inn": "", "category": "Ремонт и обслуживание помещений"}, {"counterparty": "ИП ТИМОФЕЕВ МИХАИЛ ИГОРЕВИЧ", "inn": "", "category": "Прочие маркетинговые расходы"}, {"counterparty": "Станция профилактической дезинфекции 764", "inn": "", "category": "Санэпидемиологические услуги"}, {"counterparty": "АО СТАНЦИЯ ПРОФИЛАКТИЧЕСКОЙ ДЕЗИНФЕКЦИИ", "inn": "", "category": "Санэпидемиологические услуги"}, {"counterparty": "ООО ЭКСПРЕССМЕДСЕРВИС", "inn": "", "category": "Медицинские осмотры персонала"}, {"counterparty": "ИП ЯРОШУК ВАДИМ СЕРГЕЕВИЧ", "inn": "", "category": "Услуги прачечной и стирка текстиля"}, {"counterparty": "Галкин Дмитрий Иванович", "inn": "", "category": "Ремонт и обслуживание оборудования"}, {"counterparty": "ООО ПАНОРАМА", "inn": "", "category": "Закупка материальных запасов"}, {"counterparty": "ИП ИВАНОВА ИРИНА СЕРГЕЕВНА", "inn": "", "category": "Аренда помещений"}, {"counterparty": "ООО С-ВОРК", "inn": "", "category": "Подбор персонала (HR)"}]; // Counterparty → DDS mapping
+let accounts = []; // Bank accounts (расчётные счета)
+let editingId = null;
+let editingCatId = null;
+let sortField = 'date';
+let sortDir = 1;
+let charts = {};
+
+// ===================== INIT =====================
+function init() {
+  loadFromStorage();
+  renderAll();
+}
+
+function loadFromStorage() {
+  try {
+    const t = localStorage.getItem('fa_transactions');
+    const c = localStorage.getItem('fa_categories');
+    const p = localStorage.getItem('fa_projects');
+    const h = localStorage.getItem('fa_history');
+    const d = localStorage.getItem('fa_directory');
+    const g = localStorage.getItem('fa_gsurl');
+    if (t) transactions = JSON.parse(t);
+    if (c) categories = JSON.parse(c);
+    if (p) projects = JSON.parse(p);
+    if (h) uploadHistory = JSON.parse(h);
+    if (d) {
+      // Мерджим: встроенный справочник + сохранённые пользовательские записи
+      // Встроенный справочник (defaultDir) уже загружен в `directory`
+      const saved = JSON.parse(d);
+      // Добавляем только те, которых нет во встроенном (по нормализованному имени)
+      const builtinNames = new Set(directory.map(x => normCP ? normCP(x.counterparty) : x.counterparty.toLowerCase()));
+      saved.forEach(s => {
+        const sn = normCP ? normCP(s.counterparty) : s.counterparty.toLowerCase();
+        if (!builtinNames.has(sn)) directory.push(s);
+      });
+    }
+    const acc = localStorage.getItem('fa_accounts');
+    if (acc) accounts = JSON.parse(acc);
+    if (g) document.getElementById('gsUrl').value = g;
+  } catch(e) {}
+}
+
+function saveToStorage() {
+  try {
+    localStorage.setItem('fa_transactions', JSON.stringify(transactions));
+    localStorage.setItem('fa_categories', JSON.stringify(categories));
+    localStorage.setItem('fa_projects', JSON.stringify(projects));
+    localStorage.setItem('fa_history', JSON.stringify(uploadHistory));
+    localStorage.setItem('fa_directory', JSON.stringify(directory));
+    localStorage.setItem('fa_accounts', JSON.stringify(accounts));
+    const gsUrl = document.getElementById('gsUrl');
+    if (gsUrl) localStorage.setItem('fa_gsurl', gsUrl.value);
+  } catch(e) {}
+}
+
+function renderAll() {
+  updateHeaderStats();
+  applyFilters();
+  renderAnalytics();
+  renderDDS();
+  renderCatTable();
+  renderProjTable();
+  renderDirTable();
+  renderUploadHistory();
+  populateFilterCats();
+}
+
+// ===================== FILE LOADING =====================
+function handleDrag(e, el) { e.preventDefault(); el.classList.add('drag-over'); }
+function removeDrag(el) { el.classList.remove('drag-over'); }
+function handleDrop(e, type) {
+  e.preventDefault();
+  removeDrag(e.currentTarget);
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file, type);
+}
+function loadFile(e, type) {
+  const file = e.target.files[0];
+  if (file) processFile(file, type);
+  e.target.value = '';
+}
+
+function processFile(file, type) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'xlsx' || ext === 'xls') {
+    const reader = new FileReader();
+    reader.onload = e => parseExcel(e.target.result, file.name, type);
+    reader.readAsArrayBuffer(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const bytes = new Uint8Array(e.target.result);
+      parseTxt(detectAndDecode(bytes), file.name, type);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+// Надёжное определение кодировки:
+// 1. UTF-8 BOM → utf-8
+// 2. Пробуем strict UTF-8 decode — если валидно И содержит кириллицу → utf-8
+// 3. Иначе → windows-1251
+function detectAndDecode(bytes) {
+  // Check UTF-8 BOM
+  if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+    return new TextDecoder('utf-8').decode(bytes.slice(3));
+  }
+  // Try strict UTF-8
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    // Must contain at least some cyrillic to confirm UTF-8 (not just ASCII)
+    // If file is pure ASCII it will pass UTF-8 strict too — that's fine
+    if (/[а-яёА-ЯЁ]/.test(text) || !/[\x80-\xFF]/.test(String.fromCharCode(...bytes.slice(0, 200)))) {
+      return text;
+    }
+  } catch (e) {
+    // Not valid UTF-8 → fall through to windows-1251
+  }
+  return new TextDecoder('windows-1251').decode(bytes);
+}
+
+// ===================== PARSERS =====================
+function parseExcel(buffer, filename, type) {
+  try {
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+    
+    let parsed = [];
+    if (type === 'sber') parsed = parseSberRows(data);
+    else parsed = parseGenericExcelRows(data);
+    
+    finishParsing(parsed, filename, type);
+  } catch(e) {
+    showToast('Ошибка разбора Excel: ' + e.message, 'error');
+  }
+}
+
+function parseSberRows(rows) {
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const row = rows[i].map(c => String(c || '').toLowerCase());
+    if (row.some(c => c.includes('дата')) && row.some(c => c.includes('сумм'))) {
+      headerIdx = i; break;
+    }
+  }
+  if (headerIdx === -1) headerIdx = 0;
+  const headers = rows[headerIdx].map(c => String(c || '').toLowerCase().trim());
+
+  const col = name => headers.findIndex(h => h.includes(name));
+  const iDate = col('дата'); 
+  const iSum = col('сумм');
+  const iDebit = col('дебет'); 
+  const iCredit = col('кредит');
+  const iDesc = col('назнач') !== -1 ? col('назнач') : col('описани');
+  const iCounterpart = col('контраген') !== -1 ? col('контраген') : col('получател');
+
+  const result = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || !r[iDate]) continue;
+    const date = parseDate(String(r[iDate] || ''));
+    if (!date) continue;
+
+    let amount = 0, txType = 'expense';
+    if (iDebit !== -1 && iCredit !== -1) {
+      const debit = parseAmount(r[iDebit]);
+      const credit = parseAmount(r[iCredit]);
+      if (credit > 0) { amount = credit; txType = 'income'; }
+      else { amount = debit; txType = 'expense'; }
+    } else if (iSum !== -1) {
+      amount = Math.abs(parseAmount(r[iSum]));
+      txType = parseAmount(r[iSum]) >= 0 ? 'income' : 'expense';
+    }
+    if (amount === 0) continue;
+
+    const purpose = String(r[iDesc] || '');
+    const counterparty = String(r[iCounterpart] || extractCounterparty(purpose));
+    result.push({ date, amount, type: txType, purpose, counterparty });
+  }
+  return result;
+}
+
+function parseGenericExcelRows(rows) {
+  return parseSberRows(rows);
+}
+
+function parseTxt(text, filename, type) {
+  if (!text || !text.trim()) {
+    finishParsing([], filename, type);
+    return;
+  }
+
+  // --- FORMAT DETECTION ---
+
+  // 1. 1CClientBankExchange (Альфа, Тинькофф и др.)
+  if (text.startsWith('1CClientBankExchange')) {
+    finishParsing(parse1CExchange(text), filename, type);
+    return;
+  }
+
+  // 2. kl_to_1c / СекцияРасчСчет format (Сбербанк, ВТБ онлайн-экспорт)
+  //    Starts with СекцияРасчСчет or contains key=value pairs like РасчетныйСчет=
+  const textHead = text.slice(0, 500);
+  if (textHead.includes('СекцияРасчСчет') || textHead.includes('РасчетныйСчет=') ||
+      textHead.includes('НачальныйОстаток=') || textHead.includes('ДатаНачала=')) {
+    // Same key=value section structure — use 1CExchange parser (handles both)
+    finishParsing(parse1CExchange(text), filename, type);
+    return;
+  }
+
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) { finishParsing([], filename, type); return; }
+
+  // 3. Tabular formats: tab, semicolon, pipe
+  //    Check first few non-empty lines for delimiters + date-like content
+  const firstLine = lines[0];
+  const sampleLines = lines.slice(0, 5).join('\n');
+  if (firstLine.includes('\t') || firstLine.includes(';') || firstLine.includes('|')) {
+    const sep = firstLine.includes('\t') ? '\t' : firstLine.includes(';') ? ';' : '|';
+    finishParsing(parse1CDelimited(lines, sep), filename, type);
+    return;
+  }
+
+  // 4. Line-by-line heuristic fallback
+  finishParsing(parse1CFixed(lines), filename, type);
+}
+
+// --- 1C Client Bank Exchange format parser ---
+function parse1CExchange(text) {
+  const lines = text.split(/\r?\n/);
+  
+  // Find our account number from header
+  // Supports both 1CClientBankExchange (РасчСчет) and kl_to_1c (РасчетныйСчет)
+  let ourAccount = '';
+  let bankName = '';
+  for (let i = 0; i < Math.min(lines.length, 30); i++) {
+    const m = lines[i].match(/^(?:РасчСчет|РасчетныйСчет)=(.+)/);
+    if (m) { ourAccount = m[1].trim(); }
+    const mb = lines[i].match(/^Отправитель=(.+)/);
+    if (mb) { bankName = mb[1].trim(); }
+    if (ourAccount && bankName) break;
+  }
+  // Auto-register account if new
+  if (ourAccount && !accounts.find(a => a.number === ourAccount)) {
+    accounts.push({ number: ourAccount, bank: bankName || 'Банк', name: ourAccount.slice(-4), addedAt: new Date().toLocaleDateString('ru') });
+  }
+
+  const result = [];
+  // Split into document sections
+  const rawSections = text.split(/СекцияДокумент[\s=]/);
+  
+  // If no sections found, try flat key=value rows (some kl_to_1c variants)
+  if (rawSections.length <= 1) {
+    return parse1CFixed(text.split(/\r?\n/).filter(Boolean));
+  }
+
+  for (let s = 1; s < rawSections.length; s++) {
+    const section = rawSections[s];
+    const endIdx = section.indexOf('КонецДокумента');
+    const body = endIdx !== -1 ? section.slice(0, endIdx) : section;
+    
+    // Parse key=value pairs
+    const d = {};
+    for (const line of body.split(/\r?\n/)) {
+      const eqIdx = line.indexOf('=');
+      if (eqIdx > 0) {
+        d[line.slice(0, eqIdx).trim()] = line.slice(eqIdx + 1).trim();
+      }
+    }
+    
+    const amount = parseFloat((d['Сумма'] || '0').replace(',', '.'));
+    if (!amount) continue;
+    
+    // Determine direction: if our account is the receiver → income; payer → expense
+    const payerAcc = d['ПлательщикСчет'] || d['ПлательщикРасчСчет'] || '';
+    const recvAcc  = d['ПолучательСчет'] || d['ПолучательРасчСчет'] || '';
+    
+    let txType, counterparty, dateRaw;
+    if (recvAcc === ourAccount || (!ourAccount && d['ДатаПоступило'])) {
+      txType = 'income';
+      counterparty = d['Плательщик'] || '';
+      dateRaw = d['ДатаПоступило'] || d['Дата'] || '';
+    } else {
+      txType = 'expense';
+      counterparty = d['Получатель'] || '';
+      dateRaw = d['ДатаСписано'] || d['Дата'] || '';
+    }
+    
+    const date = parseDate(dateRaw);
+    if (!date) continue;
+    
+    const purpose = d['НазначениеПлатежа'] || '';
+    counterparty = counterparty.replace(/^"|"$/g, '').trim();
+    const inn = txType === 'income' ? (d['ПлательщикИНН'] || '') : (d['ПолучательИНН'] || '');
+    const docNum = d['Номер'] || '';
+    result.push({ date, amount, type: txType, purpose, counterparty, inn, docNum, account: ourAccount });
+  }
+  return result;
+}
+
+function parse1CDelimited(lines, sep) {
+  const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/"/g, ''));
+  const col = name => headers.findIndex(h => h.includes(name));
+  
+  const iDate = col('дата') !== -1 ? col('дата') : 0;
+  const iSum = col('сумм') !== -1 ? col('сумм') : col('приход') !== -1 ? col('приход') : 3;
+  const iDebit = col('дебет');
+  const iCredit = col('кредит');
+  const iDesc = col('назнач') !== -1 ? col('назнач') : col('основани') !== -1 ? col('основани') : col('описани');
+  const iCounterpart = col('контраген') !== -1 ? col('контраген') : col('плательщик') !== -1 ? col('плательщик') : col('получател');
+
+  const result = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
+    if (cells.length < 2) continue;
+    const date = parseDate(cells[iDate]);
+    if (!date) continue;
+
+    let amount = 0, txType = 'expense';
+    if (iDebit !== -1 && iCredit !== -1) {
+      const d = parseAmount(cells[iDebit]);
+      const cr = parseAmount(cells[iCredit]);
+      if (cr > 0) { amount = cr; txType = 'income'; }
+      else if (d > 0) { amount = d; txType = 'expense'; }
+    } else {
+      amount = Math.abs(parseAmount(cells[iSum]));
+      txType = parseAmount(cells[iSum]) >= 0 ? 'income' : 'expense';
+    }
+    if (amount === 0) continue;
+
+    const purpose = iDesc !== -1 ? String(cells[iDesc] || '') : '';
+    const counterparty = iCounterpart !== -1 ? String(cells[iCounterpart] || '') : extractCounterparty(purpose);
+    result.push({ date, amount, type: txType, purpose, counterparty });
+  }
+  return result;
+}
+
+function parse1CFixed(lines) {
+  const result = [];
+  const dateRe = /(\d{2}[.\-/]\d{2}[.\-/]\d{2,4})/;
+  const amountRe = /(\d[\d\s]*[.,]\d{2})/;
+  
+  for (const line of lines) {
+    const dateM = line.match(dateRe);
+    const amtM = line.match(amountRe);
+    if (!dateM || !amtM) continue;
+    const date = parseDate(dateM[1]);
+    if (!date) continue;
+    const amount = parseAmount(amtM[1]);
+    if (!amount) continue;
+    const purpose = line.replace(dateM[0], '').replace(amtM[0], '').trim();
+    result.push({ date, amount: Math.abs(amount), type: amount >= 0 ? 'income' : 'expense', purpose, counterparty: extractCounterparty(purpose) });
+  }
+  return result;
+}
+
+function finishParsing(parsed, filename, type) {
+  if (!parsed.length) {
+    showToast('Не удалось распознать данные в файле', 'error');
+    showValidation([{ ok: false, msg: `<strong>${filename}</strong>: строки не распознаны. Проверьте формат файла.` }]);
+    return;
+  }
+
+  // Pre-assign IDs, categories, uploadId — but DON'T commit to transactions yet
+  const uploadId = Date.now().toString();
+  parsed.forEach((tx, i) => {
+    tx.category = autoCategory(tx.purpose + ' ' + tx.counterparty, tx.type, tx.counterparty, tx.inn || '');
+    tx.project = projects[0]?.name || 'Основной';
+    tx._tempId = i; // temp id for preview editing
+    tx.source = filename;
+    tx.uploadId = uploadId;
+    // Check dupe
+    tx._isDupe = tx.docNum
+      ? transactions.some(e => e.docNum === tx.docNum && e.source === tx.source)
+      : transactions.some(e =>
+          e.date === tx.date && Math.abs(e.amount - tx.amount) < 0.01 && e.counterparty === tx.counterparty
+        );
+  });
+
+  showPreviewModal(parsed, filename, type, uploadId);
+}
+
+// pendingParsed holds transactions during preview
+let pendingParsed = [];
+
+function showPreviewModal(parsed, filename, type, uploadId) {
+  pendingParsed = parsed;
+  const old = document.getElementById('previewModal');
+  if (old) old.remove();
+
+  const newTx = parsed.filter(t => !t._isDupe);
+  const dupes = parsed.filter(t => t._isDupe);
+
+  const modal = document.createElement('div');
+  modal.id = 'previewModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:16px;width:100%;max-width:900px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,0.4)">
+      
+      <!-- Header -->
+      <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:17px;font-weight:700">📋 Проверка перед загрузкой</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${filename} — ${newTx.length} новых, ${dupes.length} дублей</div>
+          </div>
+          <button onclick="document.getElementById('previewModal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">✕</button>
+        </div>
+        <!-- Toolbar -->
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+          <input id="pvSearch" placeholder="🔍 Поиск..." oninput="renderPreviewRows()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;width:160px">
+          <select id="pvFilterType" onchange="renderPreviewRows()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px">
+            <option value="">Все типы</option>
+            <option value="income">Доходы</option>
+            <option value="expense">Расходы</option>
+          </select>
+          <select id="pvFilterCat" onchange="renderPreviewRows()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px">
+            <option value="">Все статьи ДДС</option>
+            ${[...new Set(newTx.map(t=>t.category))].map(c=>`<option>${c}</option>`).join('')}
+          </select>
+          <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="pvShowDupes" onchange="renderPreviewRows()"> Показать дубли
+          </label>
+          <div style="margin-left:auto;display:flex;gap:6px">
+            <button onclick="pvSelectAll()" style="padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;color:var(--text)">☑ Все</button>
+            <button onclick="pvSelectNone()" style="padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;color:var(--text)">☐ Снять</button>
+            <button onclick="pvBulkEdit()" style="padding:5px 12px;background:var(--accent);border:none;border-radius:7px;cursor:pointer;font-size:12px;color:white;font-weight:600">✏️ Изменить группу</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div style="overflow-y:auto;flex:1">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+            <tr>
+              <th style="padding:8px 6px;text-align:center;width:32px"><input type="checkbox" id="pvCheckAll" onchange="pvToggleAll(this.checked)"></th>
+              <th style="padding:8px 6px;text-align:left">Дата</th>
+              <th style="padding:8px 6px;text-align:left">Контрагент</th>
+              <th style="padding:8px 6px;text-align:left">Назначение</th>
+              <th style="padding:8px 6px;text-align:right">Сумма</th>
+              <th style="padding:8px 6px;text-align:left;min-width:160px">Статья ДДС</th>
+              <th style="padding:8px 6px;text-align:left;min-width:110px">Проект</th>
+            </tr>
+          </thead>
+          <tbody id="pvTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
+        <button onclick="document.getElementById('previewModal').remove()" style="padding:10px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;cursor:pointer;color:var(--text)">Отмена</button>
+        <button onclick="commitParsed()" style="padding:10px 24px;background:var(--accent);border:none;border-radius:9px;cursor:pointer;color:white;font-weight:700;font-size:14px">✅ Загрузить транзакции</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  renderPreviewRows();
+}
+
+function renderPreviewRows() {
+  const body = document.getElementById('pvTableBody');
+  if (!body) return;
+  const search = (document.getElementById('pvSearch')?.value || '').toLowerCase();
+  const fType = document.getElementById('pvFilterType')?.value || '';
+  const fCat = document.getElementById('pvFilterCat')?.value || '';
+  const showDupes = document.getElementById('pvShowDupes')?.checked;
+
+  const rows = pendingParsed.filter(tx => {
+    if (tx._isDupe && !showDupes) return false;
+    if (fType && tx.type !== fType) return false;
+    if (fCat && tx.category !== fCat) return false;
+    if (search && !tx.counterparty?.toLowerCase().includes(search) && !tx.purpose?.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  body.innerHTML = rows.map(tx => `
+    <tr style="border-bottom:1px solid var(--border);${tx._isDupe ? 'opacity:0.4' : ''}">
+      <td style="padding:6px;text-align:center">
+        ${tx._isDupe ? '🔁' : `<input type="checkbox" class="pv-check" data-id="${tx._tempId}" ${tx._selected ? 'checked' : ''}>`}
+      </td>
+      <td style="padding:6px;white-space:nowrap">${fmtDate(tx.date)}</td>
+      <td style="padding:6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${tx.counterparty||''}">${tx.counterparty||'—'}</td>
+      <td style="padding:6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${tx.purpose||''}">${tx.purpose||'—'}</td>
+      <td style="padding:6px;text-align:right;font-weight:600;color:${tx.type==='income'?'var(--income)':'var(--expense)'};white-space:nowrap">${tx.type==='income'?'+':'−'}${fmt(tx.amount)}</td>
+      <td style="padding:4px 6px">
+        <select style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:11px"
+          onchange="pvSetCat(${tx._tempId}, this.value)">
+          ${categories.map(c=>`<option value="${c.name}" ${c.name===tx.category?'selected':''}>${c.name}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:4px 6px">
+        <select style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:11px"
+          onchange="pvSetProject(${tx._tempId}, this.value)">
+          ${projects.map(p=>`<option value="${p.name}" ${p.name===tx.project?'selected':''}>${p.name}</option>`).join('')}
+        </select>
+      </td>
+    </tr>
+  `).join('');
+
+  // Sync checkboxes
+  body.querySelectorAll('.pv-check').forEach(cb => {
+    cb.addEventListener('change', e => {
+      const tx = pendingParsed.find(t => t._tempId == e.target.dataset.id);
+      if (tx) tx._selected = e.target.checked;
+    });
+  });
+}
+
+function pvSetCat(tempId, value) {
+  const tx = pendingParsed.find(t => t._tempId === tempId);
+  if (!tx) return;
+  tx.category = value;
+  // Ask to save to directory
+  if (tx.counterparty && !tx._isDupe) {
+    pvOfferSaveToDir(tx);
+  }
+}
+
+function pvOfferSaveToDir(tx) {
+  const existing = directory.find(d =>
+    (d.counterparty||'').toLowerCase() === (tx.counterparty||'').toLowerCase() ||
+    (tx.inn && d.inn && d.inn === tx.inn)
+  );
+  if (existing && existing.category === tx.category) return;
+
+  // Remove previous save-toast if any
+  document.getElementById('pvSaveToast')?.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'pvSaveToast';
+  toast.style.cssText = 'position:fixed;bottom:80px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;z-index:10000;box-shadow:0 8px 30px rgba(0,0,0,0.2);font-size:12px;max-width:320px';
+  toast.innerHTML = '<div style="font-weight:600;margin-bottom:6px">💾 Запомнить статью ДДС?</div>'
+    + '<div style="color:var(--muted);margin-bottom:8px" id="pvSaveToastLabel"></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button id="pvSaveYes" style="padding:4px 12px;background:var(--accent);border:none;border-radius:6px;cursor:pointer;color:white;font-size:11px;font-weight:600">Да, запомнить</button>'
+    + '<button id="pvSaveNo" style="padding:4px 10px;background:var(--surface2);border:none;border-radius:6px;cursor:pointer;font-size:11px">Нет</button>'
+    + '</div>';
+  document.body.appendChild(toast);
+  document.getElementById('pvSaveToastLabel').textContent = (tx.counterparty || '') + ' → ' + tx.category;
+  document.getElementById('pvSaveYes').onclick = () => { pvSaveDir(tx.counterparty, tx.inn || '', tx.category); toast.remove(); };
+  document.getElementById('pvSaveNo').onclick = () => toast.remove();
+  setTimeout(() => toast.remove(), 8000);
+}
+
+function pvSaveDir(cp, inn, cat) {
+  const existing = directory.find(d => d.counterparty.toLowerCase() === (cp||'').toLowerCase() || (inn && d.inn && d.inn === inn));
+  if (existing) { existing.category = cat; if (inn) existing.inn = inn; }
+  else { directory.push({ counterparty: cp || '', inn: inn || '', category: cat, addedAt: new Date().toLocaleDateString('ru') }); }
+  saveToStorage();
+  showToast((cp || '') + ' → ' + cat + ' сохранено в справочник', 'success');
+}
+
+function pvSetProject(tempId, value) {
+  const tx = pendingParsed.find(t => t._tempId === tempId);
+  if (tx) tx.project = value;
+}
+
+function pvSelectAll() {
+  pendingParsed.filter(t => !t._isDupe).forEach(t => t._selected = true);
+  renderPreviewRows();
+  const all = document.getElementById('pvCheckAll');
+  if (all) all.checked = true;
+}
+function pvSelectNone() {
+  pendingParsed.forEach(t => t._selected = false);
+  renderPreviewRows();
+  const all = document.getElementById('pvCheckAll');
+  if (all) all.checked = false;
+}
+function pvToggleAll(checked) {
+  pendingParsed.filter(t => !t._isDupe).forEach(t => t._selected = checked);
+  renderPreviewRows();
+}
+
+function pvBulkEdit() {
+  const selected = pendingParsed.filter(t => t._selected);
+  if (!selected.length) { showToast('Выберите строки для группового редактирования', 'error'); return; }
+
+  const old = document.getElementById('pvBulkModal');
+  if (old) old.remove();
+  const m = document.createElement('div');
+  m.id = 'pvBulkModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10001;display:flex;align-items:center;justify-content:center;padding:20px';
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;padding:24px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">✏️ Групповое редактирование</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Выбрано: ${selected.length} транзакций</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Статья ДДС</label>
+        <select id="bulkCat" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;font-size:13px">
+          <option value="">— не менять —</option>
+          ${categories.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Проект</label>
+        <select id="bulkProj" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;font-size:13px">
+          <option value="">— не менять —</option>
+          ${projects.map(p=>`<option value="${p.name}">${p.name}</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="bulkSaveDir"> Сохранить в справочник (запомнить для будущих загрузок)
+        </label>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="document.getElementById('pvBulkModal').remove()" style="padding:8px 18px;background:var(--surface2);border:none;border-radius:8px;cursor:pointer;color:var(--text)">Отмена</button>
+        <button onclick="applyBulkEdit()" style="padding:8px 18px;background:var(--accent);border:none;border-radius:8px;cursor:pointer;color:white;font-weight:600">Применить</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+function applyBulkEdit() {
+  const cat = document.getElementById('bulkCat')?.value;
+  const proj = document.getElementById('bulkProj')?.value;
+  const saveDir = document.getElementById('bulkSaveDir')?.checked;
+  document.getElementById('pvBulkModal')?.remove();
+
+  const selected = pendingParsed.filter(t => t._selected);
+  selected.forEach(tx => {
+    if (cat) tx.category = cat;
+    if (proj) tx.project = proj;
+    if (cat && saveDir && tx.counterparty) {
+      const existing = directory.find(d => d.counterparty.toLowerCase() === (tx.counterparty||'').toLowerCase() || (tx.inn && d.inn && d.inn === tx.inn));
+      if (existing) { existing.category = cat; if (tx.inn) existing.inn = tx.inn; }
+      else { directory.push({ counterparty: tx.counterparty, inn: tx.inn || '', category: cat, addedAt: new Date().toLocaleDateString('ru') }); }
+    }
+  });
+  if (saveDir) { saveToStorage(); showToast(`Сохранено в справочник: ${[...new Set(selected.map(t=>t.counterparty))].length} контрагентов`, 'success'); }
+  renderPreviewRows();
+}
+
+function commitParsed() {
+  const uploadId = pendingParsed[0]?.uploadId || Date.now().toString();
+  const filename = pendingParsed[0]?.source || '';
+  let added = 0, dupes = 0;
+
+  pendingParsed.forEach(tx => {
+    if (tx._isDupe) { dupes++; return; }
+    tx.id = Date.now() + Math.random();
+    delete tx._tempId;
+    delete tx._selected;
+    delete tx._isDupe;
+    transactions.push(tx);
+    added++;
+  });
+
+  document.getElementById('previewModal')?.remove();
+  pendingParsed = [];
+
+  uploadHistory.unshift({ id: uploadId, filename, type: 'auto', date: new Date().toLocaleDateString('ru'), count: added, total: added + dupes });
+  if (uploadHistory.length > 20) uploadHistory.pop();
+
+  saveToStorage();
+  renderAll();
+  showToast(`✅ Загружено ${added} транзакций`, 'success');
+  showValidation([
+    { ok: true, msg: `<strong>${filename}</strong>: добавлено ${added} транзакций` },
+    ...(dupes > 0 ? [{ ok: null, msg: `Пропущено дублей: ${dupes}` }] : [])
+  ]);
+}
+
+function validateTx(tx, row) {
+  const issues = [];
+  if (!tx.date) issues.push({ ok: false, msg: `Строка ${row}: не удалось распознать дату` });
+  if (!tx.amount || tx.amount <= 0) issues.push({ ok: false, msg: `Строка ${row}: некорректная сумма` });
+  if (!tx.counterparty && !tx.purpose) issues.push({ ok: null, msg: `Строка ${row}: отсутствует контрагент и назначение` });
+  return issues;
+}
+
+// ===================== HELPERS =====================
+function parseDate(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  // DD.MM.YYYY or DD.MM.YY
+  let m = s.match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})$/);
+  if (m) {
+    let y = parseInt(m[3]);
+    if (y < 100) y += 2000;
+    const d = new Date(y, parseInt(m[2]) - 1, parseInt(m[1]));
+    if (isNaN(d)) return null;
+    return d.toISOString().split('T')[0];
+  }
+  // YYYY-MM-DD
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // Try JS Date
+  const d = new Date(s);
+  if (!isNaN(d)) return d.toISOString().split('T')[0];
+  return null;
+}
+
+function parseAmount(raw) {
+  if (raw === null || raw === undefined || raw === '') return 0;
+  const s = String(raw).replace(/\s/g, '').replace(/,/g, '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function extractCounterparty(purpose) {
+  if (!purpose) return 'Неизвестно';
+  // Take first meaningful chunk before punctuation
+  const m = purpose.match(/^([^,;/\\|]+)/);
+  if (m) return m[1].trim().substring(0, 50);
+  return purpose.substring(0, 50);
+}
+
+// Нормализация: убираем ООО/ИП/АО/ЗАО/ПАО/кавычки/лишнее для нечёткого поиска
+function normCP(s) {
+  // \b не работает с кириллицей — убираем юрформы вручную через split
+  const stop = new Set(['ооо','оао','пао','зао','ао','ип','гуп','муп','нко','фгуп','фбуз',
+                        'осфр','уфк','нпф','снт','тсн','тсж','жск','сз','сп']);
+  return (s || '').toLowerCase()
+    .replace(/[«»"'„""()]/g, ' ')
+    .replace(/[^а-яёa-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 0 && !stop.has(w))
+    .join(' ')
+    .trim();
+}
+
+// Токены: значимые слова длиннее 2 символов
+function tokens(s) {
+  return normCP(s).split(/\s+/).filter(w => w.length > 2);
+}
+
+// Оценка: доля токенов справочника, найденных в строке выписки
+function matchScore(cpFromStatement, cpFromDirectory) {
+  const stNorm = normCP(cpFromStatement);
+  const dirTokens = tokens(cpFromDirectory);
+  if (!dirTokens.length) return 0;
+  const matched = dirTokens.filter(t => stNorm.includes(t));
+  return matched.length / dirTokens.length;
+}
+
+
+function autoCategory(text, type, counterparty, inn) {
+  // 1. INN — самый надёжный
+  if (inn && inn.length >= 10 && directory.length) {
+    const match = directory.find(d => d.inn && d.inn.trim() === inn.trim());
+    if (match) return match.category;
+  }
+
+  // 2. Нечёткое совпадение по названию контрагента
+  if (counterparty && directory.length) {
+    let best = null, bestScore = 0;
+    for (const d of directory) {
+      // a) точное после нормализации
+      if (normCP(d.counterparty) === normCP(counterparty)) return d.category;
+      // b) оценка по токенам
+      const score = matchScore(counterparty, d.counterparty);
+      if (score > bestScore) { bestScore = score; best = d; }
+    }
+    // Порог: ≥ 0.6 токенов совпало
+    if (best && bestScore >= 0.6) return best.category;
+    // c) Выписка содержится в справочнике или наоборот (старый метод как запасной)
+    const cpN = normCP(counterparty);
+    const fallback = directory.find(d => {
+      const dN = normCP(d.counterparty);
+      return dN && (cpN.includes(dN) || dN.includes(cpN));
+    });
+    if (fallback) return fallback.category;
+  }
+
+  // 3. Ключевые слова из назначения платежа
+  const lower = (text || '').toLowerCase();
+  const matched = categories.filter(c => c.type === type && c.keywords.some(kw => lower.includes(kw.toLowerCase())));
+  if (matched.length) return matched[0].name;
+  return type === 'income' ? 'Доходы от проживания' : 'Прочие расходы';
+}
+
+function fmt(n) {
+  if (n === undefined || n === null) return '0 ₽';
+  return n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ₽';
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const parts = d.split('-');
+  if (parts.length === 3) return `${parts[2]}.${parts[1]}.${parts[0]}`;
+  return d;
+}
+
+// ===================== UI =====================
+function switchTab(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'analytics') renderCharts();
+}
+
+function showValidation(msgs) {
+  const panel = document.getElementById('validationPanel');
+  const items = document.getElementById('valItems');
+  panel.style.display = 'block';
+  const errors = msgs.filter(m => m.ok === false).length;
+  document.getElementById('valStatus').textContent = errors ? `⚠️ ${errors} ошибок` : '✅ Всё в порядке';
+  document.getElementById('valStatus').style.color = errors ? 'var(--expense)' : 'var(--income)';
+  items.innerHTML = msgs.map(m => `
+    <div class="val-item">
+      <span class="val-icon">${m.ok === true ? '✅' : m.ok === false ? '❌' : 'ℹ️'}</span>
+      <span class="val-msg">${m.msg}</span>
+    </div>
+  `).join('');
+}
+
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function updateHeaderStats() {
+  const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  document.getElementById('hTxCount').textContent = transactions.length;
+  document.getElementById('hIncome').textContent = fmt(income);
+  document.getElementById('hExpense').textContent = fmt(expense);
+}
+
+function renderUploadHistory() {
+  const el = document.getElementById('uploadHistory');
+  if (!uploadHistory.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📂</div><div class="empty-text">Файлы ещё не загружались</div></div>';
+    return;
+  }
+  el.innerHTML = `<table><thead><tr>
+    <th>Файл</th><th>Счёт</th><th>Дата загрузки</th><th>Добавлено</th><th></th>
+  </tr></thead><tbody>` + uploadHistory.map((h, idx) => `
+    <tr>
+      <td>
+        <div style="font-weight:600;font-size:12px">${h.filename}</div>
+        <div style="font-size:10px;color:var(--muted)">${h.type === 'sber' ? 'Сбербанк Excel' : '1С / TXT'}</div>
+      </td>
+      <td style="font-size:11px;color:var(--muted)">${h.account ? '•••' + h.account.slice(-4) : '—'}</td>
+      <td style="font-size:11px">${h.date}<br><span style="color:var(--income)">${h.count} добавлено</span></td>
+      <td>
+        <button class="btn btn-danger" style="font-size:10px;padding:4px 10px" onclick="deleteUpload('${h.id || idx}', ${idx})">🗑 Удалить</button>
+      </td>
+    </tr>
+  `).join('') + '</tbody></table>';
+}
+
+function deleteUpload(uploadId, histIdx) {
+  showConfirm('Удалить все транзакции из этой загрузки?', () => {
+    const before = transactions.length;
+    transactions = transactions.filter(t => t.uploadId !== uploadId);
+    if (transactions.length === before && uploadHistory[histIdx]) {
+      const fn = uploadHistory[histIdx].filename;
+      transactions = transactions.filter(t => t.source !== fn);
+    }
+    uploadHistory.splice(histIdx, 1);
+    saveToStorage();
+    renderAll();
+    showToast('Загрузка удалена', 'info');
+  });
+}
+
+function showConfirm(msg, onYes) {
+  const old = document.getElementById('confirmModal');
+  if (old) old.remove();
+  const m = document.createElement('div');
+  m.id = 'confirmModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10002;display:flex;align-items:center;justify-content:center;padding:20px';
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:20px">${msg}</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="document.getElementById('confirmModal').remove()" style="padding:8px 18px;background:var(--surface2);border:none;border-radius:8px;cursor:pointer;color:var(--text)">Отмена</button>
+        <button id="confirmYes" style="padding:8px 18px;background:var(--expense);border:none;border-radius:8px;cursor:pointer;color:white;font-weight:600">Удалить</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  document.getElementById('confirmYes').onclick = () => { m.remove(); onYes(); };
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+}
+
+// ===================== TRANSACTIONS =====================
+function applyFilters() {
+  const type = document.getElementById('filterType')?.value || '';
+  const cat = document.getElementById('filterCat')?.value || '';
+  const from = document.getElementById('filterDateFrom')?.value || '';
+  const to = document.getElementById('filterDateTo')?.value || '';
+  const search = (document.getElementById('filterSearch')?.value || '').toLowerCase();
+
+  let filtered = [...transactions];
+  if (type) filtered = filtered.filter(t => t.type === type);
+  if (cat) filtered = filtered.filter(t => t.category === cat);
+  if (from) filtered = filtered.filter(t => t.date >= from);
+  if (to) filtered = filtered.filter(t => t.date <= to);
+  if (search) filtered = filtered.filter(t =>
+    (t.counterparty || '').toLowerCase().includes(search) ||
+    (t.purpose || '').toLowerCase().includes(search)
+  );
+
+  filtered.sort((a, b) => {
+    let va = a[sortField], vb = b[sortField];
+    if (sortField === 'amount') { va = +va; vb = +vb; }
+    if (va < vb) return -sortDir;
+    if (va > vb) return sortDir;
+    return 0;
+  });
+
+  renderTxTable(filtered);
+  document.getElementById('txCount').textContent = `(${filtered.length})`;
+}
+
+function sortBy(field) {
+  if (sortField === field) sortDir *= -1;
+  else { sortField = field; sortDir = 1; }
+  applyFilters();
+}
+
+function resetFilters() {
+  ['filterType','filterCat'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['filterDateFrom','filterDateTo','filterSearch'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  applyFilters();
+}
+
+function populateFilterCats() {
+  const el = document.getElementById('filterCat');
+  if (!el) return;
+  const cats = [...new Set(transactions.map(t => t.category))].filter(Boolean).sort();
+  el.innerHTML = '<option value="">Все</option>' + cats.map(c => `<option>${c}</option>`).join('');
+}
+
+function getCatColor(catName) {
+  const idx = categories.findIndex(c => c.name === catName);
+  return `cat-${Math.abs(idx % 10)}`;
+}
+
+let selectedTxIds = new Set();
+
+function renderTxTable(data) {
+  const body = document.getElementById('txBody');
+  const empty = document.getElementById('txEmpty');
+  if (!data.length) {
+    body.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    updateTxSelection();
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  body.innerHTML = data.map(tx => {
+    const txIdStr = JSON.stringify(tx.id);
+    const isSelected = selectedTxIds.has(tx.id);
+    const purposeFull = (tx.purpose || tx.description || '').replace(/"/g, '&quot;');
+    const cpFull = (tx.counterparty || '').replace(/"/g, '&quot;');
+    // Назначение: показываем первые 60 символов с tooltip на полный текст
+    const purposeShort = (tx.purpose || tx.description || '').substring(0, 60);
+    const purposeHasMore = (tx.purpose || tx.description || '').length > 60;
+    return `
+    <tr class="${isSelected ? 'tx-selected' : ''}" onclick="txRowClick(event, ${txIdStr})">
+      <td onclick="event.stopPropagation()">
+        <input type="checkbox" class="tx-cb" data-id="${tx.id}" ${isSelected ? 'checked' : ''}
+          onchange="txCheckChange(${txIdStr}, this.checked)">
+      </td>
+      <td style="white-space:nowrap">${fmtDate(tx.date)}</td>
+      <td title="${cpFull}" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${tx.counterparty || 'Неизвестно'}</td>
+      <td style="max-width:260px">
+        <div title="${purposeFull}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">
+          ${purposeShort}${purposeHasMore ? '<span style="color:var(--muted)">…</span>' : ''}
+        </div>
+      </td>
+      <td class="amount-${tx.type}" style="white-space:nowrap">${tx.type === 'income' ? '+' : '-'}${fmt(tx.amount)}</td>
+      <td><span class="badge badge-${tx.type}">${tx.type === 'income' ? 'Доход' : 'Расход'}</span></td>
+      <td style="font-size:10px;color:var(--muted);white-space:nowrap">${tx.account ? '•••' + tx.account.slice(-4) : '—'}</td>
+      <td onclick="event.stopPropagation()">
+        <select class="inline-select" onchange="inlineSetCat(${txIdStr}, this.value)">
+          ${categories.map(c => `<option value="${c.name}" ${c.name === tx.category ? 'selected' : ''}>${c.name}</option>`).join('')}
+        </select>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <select class="inline-select" onchange="inlineSetProject(${txIdStr}, this.value)">
+          ${projects.map(p => `<option value="${p.name}" ${p.name === tx.project ? 'selected' : ''}>${p.name}</option>`).join('')}
+        </select>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-outline" style="font-size:10px;padding:4px 10px" onclick="openEdit(${txIdStr})">✏️</button>
+      </td>
+    </tr>`;
+  }).join('');
+  updateTxSelection();
+}
+
+function txRowClick(e, id) {
+  // Клик по строке открывает модал редактирования
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+  openEdit(id);
+}
+
+function txCheckChange(id, checked) {
+  if (checked) selectedTxIds.add(id);
+  else selectedTxIds.delete(id);
+  updateTxSelection();
+  // Обновить "выбрать все"
+  const cbs = document.querySelectorAll('.tx-cb');
+  const checkAll = document.getElementById('txCheckAll');
+  if (checkAll) checkAll.checked = cbs.length > 0 && [...cbs].every(cb => cb.checked);
+}
+
+function toggleAllTx(checked) {
+  const cbs = document.querySelectorAll('.tx-cb');
+  cbs.forEach(cb => {
+    const id = Number(cb.dataset.id);
+    cb.checked = checked;
+    if (checked) selectedTxIds.add(id);
+    else selectedTxIds.delete(id);
+  });
+  updateTxSelection();
+}
+
+function updateTxSelection() {
+  const count = selectedTxIds.size;
+  const countEl = document.getElementById('txSelectedCount');
+  const btn = document.getElementById('btnGroupEditTx');
+  if (countEl) { countEl.textContent = count > 0 ? `Выбрано: ${count}` : ''; countEl.style.display = count > 0 ? '' : 'none'; }
+  if (btn) btn.style.display = count > 0 ? '' : 'none';
+}
+
+function openGroupEditTx() {
+  if (!selectedTxIds.size) return;
+  const modal = document.getElementById('groupEditTxModal');
+  if (!modal) { buildGroupEditTxModal(); }
+  // Fill selects
+  const catSel = document.getElementById('groupTxCat');
+  const projSel = document.getElementById('groupTxProj');
+  if (catSel) catSel.innerHTML = '<option value="">— не менять —</option>' + categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+  if (projSel) projSel.innerHTML = '<option value="">— не менять —</option>' + projects.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+  document.getElementById('groupEditTxModal').style.display = 'flex';
+}
+
+function buildGroupEditTxModal() {
+  const div = document.createElement('div');
+  div.id = 'groupEditTxModal';
+  div.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;align-items:center;justify-content:center';
+  div.innerHTML = `
+    <div style="background:var(--surface);border-radius:16px;padding:28px;min-width:320px;max-width:420px;width:90%">
+      <div style="font-size:16px;font-weight:700;margin-bottom:20px">✏️ Групповое редактирование</div>
+      <div id="groupTxSelCount" style="font-size:12px;color:var(--muted);margin-bottom:16px"></div>
+      <label style="display:block;font-size:12px;margin-bottom:6px;color:var(--muted)">Статья ДДС</label>
+      <select id="groupTxCat" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);margin-bottom:14px;font-size:13px"></select>
+      <label style="display:block;font-size:12px;margin-bottom:6px;color:var(--muted)">Проект</label>
+      <select id="groupTxProj" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);margin-bottom:20px;font-size:13px"></select>
+      <div style="display:flex;gap:12px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="closeGroupEditTx()">Отмена</button>
+        <button class="btn btn-primary" onclick="applyGroupEditTx()">Применить</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+function closeGroupEditTx() {
+  const m = document.getElementById('groupEditTxModal');
+  if (m) m.style.display = 'none';
+}
+
+function applyGroupEditTx() {
+  const cat = document.getElementById('groupTxCat')?.value;
+  const proj = document.getElementById('groupTxProj')?.value;
+  let changed = 0;
+  transactions.forEach(tx => {
+    if (!selectedTxIds.has(tx.id)) return;
+    if (cat) tx.category = cat;
+    if (proj) tx.project = proj;
+    changed++;
+  });
+  saveToStorage();
+  selectedTxIds.clear();
+  const checkAll = document.getElementById('txCheckAll');
+  if (checkAll) checkAll.checked = false;
+  applyFilters();
+  renderAnalytics();
+  renderDDS();
+  closeGroupEditTx();
+  showToast(`Изменено транзакций: ${changed}`, 'success');
+}
+
+function inlineSetCat(id, value) {
+  const tx = transactions.find(t => t.id === id);
+  if (!tx) return;
+  tx.category = value;
+  saveToStorage();
+  renderAnalytics();
+  renderDDS();
+}
+
+function inlineSetProject(id, value) {
+  const tx = transactions.find(t => t.id === id);
+  if (!tx || tx.project === value.trim()) return;
+  tx.project = value.trim() || tx.project;
+  saveToStorage();
+}
+
+// ===================== EDIT =====================
+function openEdit(id) {
+  const tx = transactions.find(t => t.id === id);
+  if (!tx) return;
+  editingId = id;
+
+  const catSel = document.getElementById('editCat');
+  const projSel = document.getElementById('editProject');
+  catSel.innerHTML = categories.map(c => `<option value="${c.name}" ${c.name === tx.category ? 'selected' : ''}>${c.name}</option>`).join('');
+  projSel.innerHTML = projects.map(p => `<option value="${p.name}" ${p.name === tx.project ? 'selected' : ''}>${p.name}</option>`).join('');
+  document.getElementById('editType').value = tx.type;
+  document.getElementById('editDate').value = tx.date || '';
+  document.getElementById('editAmount').value = tx.amount || '';
+  document.getElementById('editCounterparty').value = tx.counterparty || '';
+  document.getElementById('editPurpose').value = tx.purpose || tx.description || '';
+  const infoBar = document.getElementById('editInfoBar');
+  if (infoBar) {
+    infoBar.innerHTML = `<b>ID:</b> ${tx.id} &nbsp;·&nbsp; <b>Файл:</b> ${tx.uploadName || '—'} &nbsp;·&nbsp; <b>Счёт:</b> ${tx.account ? '•••' + tx.account.slice(-4) : '—'}`;
+  }
+  const accSel = document.getElementById('editAccount');
+  if (accSel) {
+    accSel.innerHTML = '<option value="">— не указан —</option>' + accounts.map(a =>
+      `<option value="${a.number}" ${a.number === tx.account ? 'selected' : ''}>•••${a.number.slice(-4)} ${a.name || ''}</option>`
+    ).join('');
+  }
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); editingId = null; }
+
+function saveEdit() {
+  const tx = transactions.find(t => t.id === editingId);
+  if (!tx) return;
+  tx.category = document.getElementById('editCat').value;
+  tx.project = document.getElementById('editProject').value;
+  tx.type = document.getElementById('editType').value;
+  tx.counterparty = document.getElementById('editCounterparty').value;
+  tx.purpose = document.getElementById('editPurpose').value;
+  tx.description = tx.purpose;
+  const newDate = document.getElementById('editDate').value;
+  if (newDate) tx.date = newDate;
+  const newAmt = parseFloat(document.getElementById('editAmount').value);
+  if (!isNaN(newAmt) && newAmt > 0) tx.amount = newAmt;
+  const accVal = document.getElementById('editAccount')?.value;
+  if (accVal !== undefined) tx.account = accVal;
+  closeModal();
+  saveToStorage();
+  renderAll();
+  showToast('Транзакция обновлена', 'success');
+}
+
+function quickEditCat(id) { openEdit(id); }
+
+// ===================== ANALYTICS =====================
+function renderAnalytics() {
+  const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const el = id => document.getElementById(id);
+  if (el('statIncome')) el('statIncome').textContent = fmt(income);
+  if (el('statExpense')) el('statExpense').textContent = fmt(expense);
+  if (el('statNet')) {
+    const net = income - expense;
+    el('statNet').textContent = fmt(net);
+    el('statNet').style.color = net >= 0 ? 'var(--income)' : 'var(--expense)';
+  }
+  if (el('statCount')) el('statCount').textContent = transactions.length;
+}
+
+function renderCharts() {
+  renderMonthlyChart();
+  renderCategoryChart();
+  renderCounterpartyChart();
+  renderBalanceChart();
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+const chartDefaults = {
+  plugins: { legend: { labels: { color: '#5a6070', font: { family: 'JetBrains Mono', size: 10 } } } },
+  scales: {
+    x: { ticks: { color: '#5a6070', font: { family: 'JetBrains Mono', size: 9 } }, grid: { color: 'rgba(30,37,53,0.5)' } },
+    y: { ticks: { color: '#5a6070', font: { family: 'JetBrains Mono', size: 9 } }, grid: { color: 'rgba(30,37,53,0.5)' } }
+  }
+};
+
+function renderMonthlyChart() {
+  destroyChart('monthly');
+  const months = {};
+  transactions.forEach(tx => {
+    const m = tx.date ? tx.date.substring(0, 7) : 'unknown';
+    if (!months[m]) months[m] = { income: 0, expense: 0 };
+    months[m][tx.type] += tx.amount;
+  });
+  const labels = Object.keys(months).sort().map(m => {
+    const [y, mo] = m.split('-');
+    return `${mo}.${y.slice(2)}`;
+  });
+  const keys = Object.keys(months).sort();
+  const ctx = document.getElementById('chartMonthly')?.getContext('2d');
+  if (!ctx) return;
+  charts.monthly = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Доходы', data: keys.map(k => months[k].income), backgroundColor: 'rgba(0,212,170,0.7)', borderRadius: 4 },
+        { label: 'Расходы', data: keys.map(k => months[k].expense), backgroundColor: 'rgba(255,77,109,0.7)', borderRadius: 4 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, ...chartDefaults }
+  });
+}
+
+function renderCategoryChart() {
+  destroyChart('cat');
+  const expenses = transactions.filter(t => t.type === 'expense');
+  const byCat = {};
+  expenses.forEach(t => { byCat[t.category] = (byCat[t.category] || 0) + t.amount; });
+  const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const ctx = document.getElementById('chartCategories')?.getContext('2d');
+  if (!ctx || !sorted.length) return;
+  const colors = ['#00d4aa','#ff6b35','#7c6fff','#ffd93d','#ff4d6d','#4ecdc4','#95e1d3','#f38181'];
+  charts.cat = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(e => e[0]),
+      datasets: [{ data: sorted.map(e => e[1]), backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { color: '#5a6070', font: { family: 'JetBrains Mono', size: 9 }, boxWidth: 12, padding: 8 } } }
+    }
+  });
+}
+
+function renderCounterpartyChart() {
+  destroyChart('cp');
+  const byCp = {};
+  transactions.forEach(t => { byCp[t.counterparty] = (byCp[t.counterparty] || 0) + t.amount; });
+  const sorted = Object.entries(byCp).filter(e => e[0] && e[0] !== 'Неизвестно').sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const ctx = document.getElementById('chartCounterparties')?.getContext('2d');
+  if (!ctx || !sorted.length) return;
+  charts.cp = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(e => e[0].substring(0, 20)),
+      datasets: [{ label: 'Сумма', data: sorted.map(e => e[1]), backgroundColor: 'rgba(124,111,255,0.7)', borderRadius: 4 }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#5a6070', font: { family: 'JetBrains Mono', size: 9 } }, grid: { color: 'rgba(30,37,53,0.5)' } },
+        y: { ticks: { color: '#5a6070', font: { family: 'JetBrains Mono', size: 9 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderBalanceChart() {
+  destroyChart('bal');
+  const sorted = [...transactions].sort((a, b) => a.date > b.date ? 1 : -1);
+  let bal = 0;
+  const points = sorted.map(tx => {
+    bal += tx.type === 'income' ? tx.amount : -tx.amount;
+    return { x: fmtDate(tx.date), y: bal };
+  });
+  const ctx = document.getElementById('chartBalance')?.getContext('2d');
+  if (!ctx || !points.length) return;
+  charts.bal = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: points.map(p => p.x),
+      datasets: [{
+        label: 'Баланс', data: points.map(p => p.y),
+        borderColor: '#00d4aa', backgroundColor: 'rgba(0,212,170,0.08)',
+        borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, ...chartDefaults, plugins: { legend: { display: false } } }
+  });
+}
+
+// ===================== DDS =====================
+// ── DDS drill-down state ──
+let ddsState = { level: 'categories', type: null, category: null, counterparty: null };
+// Храним данные в переменных, а не передаём через onclick — защита от кавычек
+let _ddsCatList = { income: [], expense: [] };
+let _ddsCpList = [];
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderDDS() {
+  const grid = document.getElementById('ddsGrid');
+  if (!grid) return;
+  if (!transactions.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📑</div><div class="empty-text">Загрузите транзакции</div></div>';
+    return;
+  }
+  ddsState = { level: 'categories', type: null, category: null, counterparty: null };
+  renderDDSLevel(grid);
+}
+
+function renderDDSLevel(grid) {
+  if (!grid) grid = document.getElementById('ddsGrid');
+  if (!grid) return;
+
+  if (ddsState.level === 'categories') {
+    const income = buildDDSSection('income', 'Доходы', 'var(--income)');
+    const expense = buildDDSSection('expense', 'Расходы', 'var(--expense)');
+    grid.innerHTML = income + expense;
+
+  } else if (ddsState.level === 'counterparties') {
+    const color = ddsState.type === 'income' ? 'var(--income)' : 'var(--expense)';
+    const txs = transactions.filter(t => t.category === ddsState.category);
+    const total = txs.reduce((s, t) => s + t.amount, 0);
+    const byCp = {};
+    txs.forEach(t => { const cp = t.counterparty || '—'; byCp[cp] = (byCp[cp]||0) + t.amount; });
+    const sorted = Object.entries(byCp).sort((a,b) => b[1]-a[1]);
+    _ddsCpList = sorted.map(([cp]) => cp); // сохраняем в переменную
+
+    const rows = sorted.map(([cp, sum], idx) => {
+      const pct = total > 0 ? (sum/total*100).toFixed(1) : 0;
+      return `<div class="dds-row dds-clickable" onclick="ddsDrillCP(${idx})">
+        <div style="flex:1;min-width:0">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(cp)}">${esc(cp)}</div>
+          <div class="dds-bar" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px">
+          <div style="color:${color};font-weight:500">${fmt(sum)}</div>
+          <div style="font-size:9px;color:var(--muted)">${pct}%</div>
+        </div>
+        <div style="margin-left:8px;color:var(--muted);font-size:11px">›</div>
+      </div>`;
+    }).join('');
+
+    grid.innerHTML = `<div class="dds-card" style="grid-column:1/-1">
+      <div class="dds-card-header" style="gap:8px">
+        <button onclick="ddsDrillBack('categories')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:13px;padding:0">‹ Назад</button>
+        <span style="flex:1">${esc(ddsState.category)}</span>
+        <span style="color:${color}">${fmt(total)}</span>
+      </div>
+      <div style="padding:6px 20px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">
+        Контрагентов: ${sorted.length} · Нажмите для просмотра документов
+      </div>
+      ${rows || '<div style="padding:20px;text-align:center;color:var(--muted)">Нет данных</div>'}
+    </div>`;
+
+  } else if (ddsState.level === 'documents') {
+    const color = ddsState.type === 'income' ? 'var(--income)' : 'var(--expense)';
+    const txs = transactions.filter(t =>
+      t.category === ddsState.category && (t.counterparty || '—') === ddsState.counterparty
+    );
+    const total = txs.reduce((s,t) => s+t.amount, 0);
+    const sorted = [...txs].sort((a,b) => new Date(b.date)-new Date(a.date));
+
+    const rows = sorted.map(t => `
+      <div class="dds-row" style="gap:12px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex-shrink:0;color:var(--muted);font-size:10px;width:70px;padding-top:2px">${fmtDate(t.date)}</div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:11px;font-weight:500;word-break:break-word;white-space:normal;line-height:1.4">${esc(t.counterparty||'—')}</div>
+          <div style="font-size:10px;color:var(--muted);word-break:break-word;white-space:normal;line-height:1.4;margin-top:2px">${esc(t.description||t.purpose||'—')}</div>
+          ${t.account ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">Счёт: •••${esc(t.account.slice(-4))}</div>` : ''}
+        </div>
+        <div style="flex-shrink:0;text-align:right">
+          <div style="color:${color};font-weight:600;font-size:13px">${fmt(t.amount)}</div>
+          ${t.project ? `<div style="font-size:9px;color:var(--muted)">${esc(t.project)}</div>` : ''}
+        </div>
+      </div>`).join('');
+
+    grid.innerHTML = `<div class="dds-card" style="grid-column:1/-1">
+      <div class="dds-card-header" style="gap:8px">
+        <button onclick="ddsDrillBack('counterparties')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:13px;padding:0">‹ Назад</button>
+        <div style="flex:1;min-width:0">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ddsState.counterparty)}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:400">${esc(ddsState.category)}</div>
+        </div>
+        <span style="color:${color}">${fmt(total)}</span>
+      </div>
+      <div style="padding:6px 20px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">
+        Документов: ${sorted.length}
+      </div>
+      ${rows || '<div style="padding:20px;text-align:center;color:var(--muted)">Нет данных</div>'}
+    </div>`;
+  }
+}
+
+function ddsDrillCat(idx, type) {
+  const cat = _ddsCatList[type] && _ddsCatList[type][idx];
+  if (cat === undefined) { console.error('ddsDrillCat: cat not found', idx, type, _ddsCatList); return; }
+  _ddsCpList = []; // сброс
+  ddsState = { level: 'counterparties', type, category: cat, counterparty: null };
+  renderDDSLevel();
+}
+
+function ddsDrillCP(idx) {
+  const cp = _ddsCpList[idx];
+  if (cp === undefined) { console.error('ddsDrillCP: cp not found', idx, _ddsCpList); return; }
+  ddsState.level = 'documents';
+  ddsState.counterparty = cp;
+  renderDDSLevel();
+}
+
+function ddsDrillBack(level) {
+  ddsState.level = level;
+  if (level === 'categories') { ddsState.category = null; _ddsCpList = []; }
+  ddsState.counterparty = null;
+  renderDDSLevel();
+}
+
+function buildDDSSection(type, label, color) {
+  const txs = transactions.filter(t => t.type === type);
+  const total = txs.reduce((s, t) => s + t.amount, 0);
+  const byCat = {};
+  txs.forEach(t => { byCat[t.category] = (byCat[t.category] || 0) + t.amount; });
+  const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  _ddsCatList[type] = sorted.map(([c]) => c); // сохраняем список
+
+  const rows = sorted.map(([cat, sum], idx) => {
+    const pct = total > 0 ? (sum / total * 100).toFixed(1) : 0;
+    return `<div class="dds-row dds-clickable" onclick="ddsDrillCat(${idx},'${type}')">
+      <div style="flex:1;min-width:0">
+        <div>${esc(cat)}</div>
+        <div class="dds-bar" style="width:${pct}%;background:${color}"></div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:12px">
+        <div style="color:${color};font-weight:500">${fmt(sum)}</div>
+        <div style="font-size:9px;color:var(--muted)">${pct}%</div>
+      </div>
+      <div style="margin-left:8px;color:var(--muted);font-size:11px">›</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="dds-card">
+    <div class="dds-card-header">
+      <span>${label}</span>
+      <span style="color:${color}">${fmt(total)}</span>
+    </div>
+    ${rows || '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px">Нет данных</div>'}
+  </div>`;
+}
+
+// ===================== CATEGORIES =====================
+function renderCatTable() {
+  const body = document.getElementById('catTable');
+  if (!body) return;
+  body.innerHTML = categories.map(c => `
+    <tr>
+      <td>${c.name}</td>
+      <td><span class="badge badge-${c.type}">${c.type === 'income' ? 'Доход' : 'Расход'}</span></td>
+      <td style="color:var(--muted);font-size:10px">${(c.keywords || []).join(', ').substring(0, 50) || '—'}</td>
+      <td><button class="btn btn-danger" onclick="deleteCat(${c.id})">Удалить</button></td>
+    </tr>
+  `).join('');
+}
+
+function openCatModal(id) {
+  editingCatId = id || null;
+  document.getElementById('catName').value = '';
+  document.getElementById('catType').value = 'expense';
+  document.getElementById('catKeywords').value = '';
+  document.getElementById('catModalOverlay').classList.add('open');
+}
+
+function closeCatModal() { document.getElementById('catModalOverlay').classList.remove('open'); }
+
+function saveCat() {
+  const name = document.getElementById('catName').value.trim();
+  if (!name) { showToast('Введите название', 'error'); return; }
+  const type = document.getElementById('catType').value;
+  const keywords = document.getElementById('catKeywords').value.split(',').map(k => k.trim()).filter(Boolean);
+  const newId = Math.max(0, ...categories.map(c => c.id)) + 1;
+  categories.push({ id: newId, name, type, keywords });
+  closeCatModal();
+  saveToStorage();
+  renderCatTable();
+  showToast('Статья ДДС добавлена', 'success');
+}
+
+function deleteCat(id) {
+  categories = categories.filter(c => c.id !== id);
+  saveToStorage();
+  renderCatTable();
+}
+
+// ===================== PROJECTS =====================
+function renderProjTable() {
+  const body = document.getElementById('projTable');
+  if (!body) return;
+  body.innerHTML = projects.map(p => `
+    <tr>
+      <td>${p.name}</td>
+      <td style="color:var(--muted)">${p.code}</td>
+      <td><button class="btn btn-danger" onclick="deleteProj(${p.id})">Удалить</button></td>
+    </tr>
+  `).join('');
+}
+
+function addProject() {
+  const name = prompt('Название проекта:');
+  if (!name) return;
+  const code = prompt('Код проекта (например PRJ-C):') || 'PRJ';
+  const newId = Math.max(0, ...projects.map(p => p.id)) + 1;
+  projects.push({ id: newId, name: name.trim(), code: code.trim() });
+  saveToStorage();
+  renderProjTable();
+}
+
+function deleteProj(id) {
+  projects = projects.filter(p => p.id !== id);
+  saveToStorage();
+  renderProjTable();
+}
+
+// ===================== EXPORT =====================
+function exportExcel(mode) {
+  if (!transactions.length) { showToast('Нет данных для экспорта', 'error'); return; }
+
+  let data, sheetName;
+  if (mode === 'dds') {
+    sheetName = 'ДДС';
+    data = [['Статья', 'Тип', 'Сумма', '% от итога']];
+    ['income', 'expense'].forEach(type => {
+      const txs = transactions.filter(t => t.type === type);
+      const total = txs.reduce((s, t) => s + t.amount, 0);
+      const byCat = {};
+      txs.forEach(t => { byCat[t.category] = (byCat[t.category] || 0) + t.amount; });
+      Object.entries(byCat).sort((a, b) => b[1] - a[1]).forEach(([cat, sum]) => {
+        data.push([cat, type === 'income' ? 'Доход' : 'Расход', sum, total > 0 ? +(sum / total * 100).toFixed(1) : 0]);
+      });
+      data.push(['ИТОГО ' + (type === 'income' ? 'ДОХОДЫ' : 'РАСХОДЫ'), '', total, 100]);
+      data.push([]);
+    });
+  } else {
+    sheetName = 'Транзакции';
+    data = [['Дата', 'Контрагент', 'Назначение', 'Сумма', 'Тип', 'Статья ДДС', 'Проект', 'Источник']];
+    transactions.forEach(tx => {
+      data.push([fmtDate(tx.date), tx.counterparty, tx.purpose, tx.amount, tx.type === 'income' ? 'Доход' : 'Расход', tx.category, tx.project, tx.source]);
+    });
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 40 }, { wch: 15 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, `ФинАнализ_${sheetName}_${new Date().toLocaleDateString('ru')}.xlsx`);
+  showToast('Файл Excel скачан', 'success');
+}
+
+// ===================== GOOGLE SHEETS =====================
+function getGsUrl() {
+  const url = document.getElementById('gsUrl').value.trim();
+  if (!url) { showToast('Введите URL Google Apps Script в Настройках', 'error'); return null; }
+  localStorage.setItem('fa_gsurl', url);
+  return url;
+}
+
+function gsSetStatus(msg, color) {
+  const el = document.getElementById('gsStatus');
+  if (el) el.innerHTML = `<span style="color:${color||'var(--muted)'}">${msg}</span>`;
+}
+
+async function testGS() {
+  const url = getGsUrl();
+  if (!url) return;
+  gsSetStatus('⏳ Проверяем связь...', 'var(--muted)');
+  try {
+    const resp = await fetch(url + '?action=ping');
+    const data = await resp.json();
+    if (data.ok) {
+      gsSetStatus('✅ Соединение установлено: ' + data.message, 'var(--income)');
+      showToast('Подключено!', 'success');
+    } else {
+      gsSetStatus('❌ Ошибка: ' + (data.error || 'неизвестно'), 'var(--expense)');
+    }
+  } catch(e) {
+    gsSetStatus('❌ Не удалось подключиться: ' + e.message, 'var(--expense)');
+    showToast('Ошибка подключения. Проверьте URL и настройки доступа скрипта.', 'error');
+  }
+}
+
+async function syncWriteGS() {
+  const url = getGsUrl();
+  if (!url) return;
+  if (!transactions.length) { showToast('Нет данных для записи', 'error'); return; }
+  gsSetStatus('⏳ Записываем данные в Google Sheets...', 'var(--muted)');
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'write',
+        payload: { transactions, directory, categories }
+      })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      gsSetStatus(`✅ Записано: ${transactions.length} транзакций, ${directory.length} контрагентов, ${categories.length} статей ДДС`, 'var(--income)');
+      showToast('Данные записаны в Google Sheets!', 'success');
+    } else {
+      gsSetStatus('❌ ' + (data.error || 'Ошибка записи'), 'var(--expense)');
+    }
+  } catch(e) {
+    gsSetStatus('❌ ' + e.message, 'var(--expense)');
+    showToast('Ошибка записи: ' + e.message, 'error');
+  }
+}
+
+async function syncReadGS() {
+  const url = getGsUrl();
+  if (!url) return;
+  if (transactions.length && !confirm('Загрузить данные из Google Sheets? Текущие данные в браузере будут заменены.')) return;
+  gsSetStatus('⏳ Загружаем данные из Google Sheets...', 'var(--muted)');
+  try {
+    const resp = await fetch(url + '?action=read');
+    const data = await resp.json();
+    if (!data.ok) { gsSetStatus('❌ ' + (data.error||'Ошибка'), 'var(--expense)'); return; }
+    if (data.transactions && data.transactions.length) {
+      transactions = data.transactions.map(tx => ({
+        ...tx,
+        amount: parseFloat(tx.amount) || 0,
+        id: Number(tx.id) || tx.id
+      }));
+    }
+    if (data.directory && data.directory.length) directory = data.directory;
+    if (data.categories && data.categories.length) {
+      categories = data.categories.map(c => ({ ...c, id: Number(c.id)||c.id, keywords: typeof c.keywords === 'string' ? c.keywords.split(',').map(k=>k.trim()).filter(Boolean) : c.keywords||[] }));
+    }
+    saveToStorage();
+    renderAll();
+    gsSetStatus(`✅ Загружено: ${transactions.length} транзакций, ${directory.length} контрагентов`, 'var(--income)');
+    showToast('Данные загружены из Google Sheets!', 'success');
+  } catch(e) {
+    gsSetStatus('❌ ' + e.message, 'var(--expense)');
+    showToast('Ошибка загрузки: ' + e.message, 'error');
+  }
+}
+
+async function syncAppendGS() {
+  const url = getGsUrl();
+  if (!url) return;
+  if (!transactions.length) { showToast('Нет транзакций для добавления', 'error'); return; }
+  gsSetStatus('⏳ Добавляем новые транзакции...', 'var(--muted)');
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'append', payload: { transactions } })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      gsSetStatus(`✅ Добавлено: ${data.added}, пропущено дублей: ${data.skipped}`, 'var(--income)');
+      showToast(`Добавлено ${data.added} транзакций`, 'success');
+    } else {
+      gsSetStatus('❌ ' + (data.error||'Ошибка'), 'var(--expense)');
+    }
+  } catch(e) {
+    gsSetStatus('❌ ' + e.message, 'var(--expense)');
+    showToast('Ошибка: ' + e.message, 'error');
+  }
+}
+
+// ===================== DIRECTORY (Контрагент → ДДС) =====================
+function loadDirectory(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (ext === 'csv') {
+    const reader = new FileReader();
+    reader.onload = e => parseDirectoryCSV(e.target.result);
+    reader.readAsText(file, 'utf-8');
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => parseDirectoryExcel(e.target.result);
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseDirectoryExcel(buffer) {
+  try {
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    parseDirectoryRows(rows);
+  } catch(e) {
+    showToast('Ошибка чтения файла: ' + e.message, 'error');
+  }
+}
+
+function parseDirectoryCSV(text) {
+  const sep = text.includes(';') ? ';' : ',';
+  const rows = text.split('\n').map(l => l.split(sep).map(c => c.trim().replace(/^"|"$/g, '')));
+  parseDirectoryRows(rows);
+}
+
+function parseDirectoryRows(rows) {
+  if (!rows.length) return;
+  // Find header row with "контрагент" and "статья" or "ддс"
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    const r = rows[i].map(c => String(c||'').toLowerCase());
+    if (r.some(c => c.includes('контраген')) || r.some(c => c.includes('статья') || c.includes('ддс'))) {
+      headerIdx = i; break;
+    }
+  }
+  const headers = rows[headerIdx].map(c => String(c||'').toLowerCase());
+  const iCp = headers.findIndex(h => h.includes('контраген') || h.includes('наименован') || h.includes('организац'));
+  const iCat = headers.findIndex(h => h.includes('статья') || h.includes('ддс') || h.includes('категор'));
+  const iInn = headers.findIndex(h => h.includes('инн') || h === 'inn');
+  
+  // Fallback: assume col 0 = counterparty, col 1 = category
+  const cpCol = iCp !== -1 ? iCp : 0;
+  const catCol = iCat !== -1 ? iCat : 1;
+
+  let added = 0, updated = 0;
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const cp = String(r[cpCol] || '').trim();
+    const cat = String(r[catCol] || '').trim();
+    const inn = iInn !== -1 ? String(r[iInn] || '').trim() : '';
+    if (!cp || !cat) continue;
+    
+    const existing = directory.find(d => d.counterparty.toLowerCase() === cp.toLowerCase() || (inn && d.inn && d.inn === inn));
+    if (existing) { existing.category = cat; if (inn) existing.inn = inn; updated++; }
+    else { directory.push({ counterparty: cp, inn: inn || '', category: cat, addedAt: new Date().toLocaleDateString('ru') }); added++; }
+  }
+
+  saveToStorage();
+  renderDirTable();
+  // Re-categorize existing transactions using new directory
+  let recategorized = 0;
+  transactions.forEach(tx => {
+    const newCat = autoCategory(tx.purpose, tx.type, tx.counterparty, tx.inn || '');
+    if (newCat !== tx.category) { tx.category = newCat; recategorized++; }
+  });
+  if (recategorized > 0) saveToStorage();
+  renderAll();
+  showToast(`Справочник: добавлено ${added}, обновлено ${updated}. Перекатегоризовано транзакций: ${recategorized}`, 'success');
+}
+
+function renderDirTable() {
+  const body = document.getElementById('dirTable');
+  const empty = document.getElementById('dirEmpty');
+  if (!body) return;
+  if (!directory.length) {
+    body.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  body.innerHTML = directory.map((d, i) => `
+    <tr>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${d.counterparty}">${d.counterparty}</td>
+      <td style="color:var(--muted);font-size:11px">${d.inn || "—"}</td>
+      <td><span class="cat-badge cat-${i % 10}">${d.category}</span></td>
+      <td style="color:var(--muted)">${d.addedAt || '—'}</td>
+      <td>
+        <button class="btn btn-danger" onclick="deleteDirRow(${i})">Удалить</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function addDirRow() {
+  showAddDirModal();
+}
+
+function showAddDirModal(prefill) {
+  const old = document.getElementById('addDirModal');
+  if (old) old.remove();
+  const m = document.createElement('div');
+  m.id = 'addDirModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:14px;padding:24px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="font-size:16px;font-weight:700;margin-bottom:18px">➕ Добавить в справочник</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Контрагент (как в выписке)</label>
+        <input id="dirCpInput" type="text" value="${prefill?.cp || ''}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;font-size:13px" placeholder="ООО Название">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">ИНН (необязательно, для точного совпадения)</label>
+        <input id="dirInnInput" type="text" value="${prefill?.inn || ''}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;font-size:13px" placeholder="1234567890">
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Статья ДДС</label>
+        <select id="dirCatInput" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;font-size:13px">
+          ${categories.map(c => `<option value="${c.name}" ${prefill?.cat === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="document.getElementById('addDirModal').remove()" style="padding:8px 18px;background:var(--surface2);border:none;border-radius:8px;cursor:pointer;color:var(--text)">Отмена</button>
+        <button onclick="saveDirRow()" style="padding:8px 18px;background:var(--accent);border:none;border-radius:8px;cursor:pointer;color:white;font-weight:600">Сохранить</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+  setTimeout(() => document.getElementById('dirCpInput')?.focus(), 50);
+}
+
+function saveDirRow() {
+  const cp = document.getElementById('dirCpInput')?.value?.trim();
+  const inn = document.getElementById('dirInnInput')?.value?.trim();
+  const cat = document.getElementById('dirCatInput')?.value;
+  if (!cp) { showToast('Введите название контрагента', 'error'); return; }
+  document.getElementById('addDirModal')?.remove();
+  const existing = directory.find(d => d.counterparty.toLowerCase() === cp.toLowerCase() || (inn && d.inn && d.inn === inn));
+  if (existing) { existing.category = cat; existing.inn = inn || existing.inn; }
+  else { directory.push({ counterparty: cp, inn: inn || '', category: cat, addedAt: new Date().toLocaleDateString('ru') }); }
+  saveToStorage();
+  renderDirTable();
+  showToast('Добавлено в справочник', 'success');
+}
+
+function deleteDirRow(idx) {
+  directory.splice(idx, 1);
+  saveToStorage();
+  renderDirTable();
+}
+
+function exportDirectory() {
+  if (!directory.length) { showToast('Справочник пуст', 'error'); return; }
+  const data = [['Контрагент', 'ИНН', 'Статья ДДС', 'Дата добавления']];
+  directory.forEach(d => data.push([d.counterparty, d.inn || '', d.category, d.addedAt || '']));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{ wch: 55 }, { wch: 15 }, { wch: 35 }, { wch: 15 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Справочник');
+
+  // Второй лист: уникальные статьи ДДС
+  const catData = [['Статья ДДС', 'Тип']];
+  categories.forEach(c => catData.push([c.name, c.type === 'income' ? 'Доход' : 'Расход']));
+  const wsCat = XLSX.utils.aoa_to_sheet(catData);
+  wsCat['!cols'] = [{ wch: 45 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, wsCat, 'Статьи ДДС');
+
+  XLSX.writeFile(wb, `Справочник_контрагентов_${new Date().toLocaleDateString('ru')}.xlsx`);
+  showToast('Справочник скачан (2 листа: контрагенты + статьи ДДС)', 'success');
+}
+
+function exportCategoriesOnly() {
+  const data = [['Статья ДДС', 'Тип', 'Ключевые слова']];
+  categories.forEach(c => data.push([c.name, c.type === 'income' ? 'Доход' : 'Расход', (c.keywords||[]).join(', ')]));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{ wch: 45 }, { wch: 10 }, { wch: 30 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Статьи ДДС');
+  XLSX.writeFile(wb, `Статьи_ДДС_${new Date().toLocaleDateString('ru')}.xlsx`);
+  showToast('Статьи ДДС скачаны', 'success');
+}
+
+function importCategoriesFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      let added = 0, updated = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const name = String(rows[i][0] || '').trim();
+        const typeRaw = String(rows[i][1] || '').trim().toLowerCase();
+        const kws = rows[i][2] ? String(rows[i][2]).split(',').map(k => k.trim()).filter(Boolean) : [];
+        if (!name) continue;
+        const t = typeRaw.includes('доход') ? 'income' : 'expense';
+        const existing = categories.find(c => c.name.toLowerCase() === name.toLowerCase());
+        if (existing) { existing.type = t; if (kws.length) existing.keywords = kws; updated++; }
+        else { categories.push({ id: Date.now() + Math.random(), name, type: t, keywords: kws }); added++; }
+      }
+      saveToStorage();
+      renderCatTable();
+      showToast(`Статьи ДДС: добавлено ${added}, обновлено ${updated}`, 'success');
+    } catch(err) {
+      showToast('Ошибка чтения файла: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ===================== CLEAR =====================
+function clearAll() {
+  if (!confirm('Очистить все загруженные транзакции?')) return;
+  transactions = [];
+  uploadHistory = [];
+  saveToStorage();
+  renderAll();
+  document.getElementById('validationPanel').style.display = 'none';
+  showToast('Данные очищены', 'info');
+}
+
+// ===================== START =====================
+window.onload = init;
+</script>
+</body>
+</html>

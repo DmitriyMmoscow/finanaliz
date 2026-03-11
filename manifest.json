@@ -1,0 +1,17 @@
+{
+  "name": "ФинАнализ",
+  "short_name": "ФинАнализ",
+  "description": "Анализ банковских выписок и учёт ДДС",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#00b894",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/128/emoji_u1f4ca.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ]
+}
