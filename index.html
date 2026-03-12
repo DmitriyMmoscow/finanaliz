@@ -856,6 +856,41 @@ tr:not(.tx-selected):hover td {
 
     <!-- ANALYTICS TAB -->
     <div id="tab-analytics" class="page">
+
+      <!-- ФИЛЬТРЫ АНАЛИТИКИ -->
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 20px">
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Период</span>
+        <select id="analyticsPreset" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 12px">
+          <option value="all">Все время</option>
+          <option value="thisMonth">Текущий месяц</option>
+          <option value="lastMonth">Прошлый месяц</option>
+          <option value="thisQuarter">Текущий квартал</option>
+          <option value="thisYear">Текущий год</option>
+          <option value="custom">Произвольный период</option>
+        </select>
+        <div id="analyticsCustomDates" style="display:none;gap:8px;align-items:center">
+          <span style="font-size:9px;color:var(--muted)">С</span>
+          <input type="date" id="analyticsDateFrom" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 10px">
+          <span style="font-size:9px;color:var(--muted)">По</span>
+          <input type="date" id="analyticsDateTo" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 10px">
+        </div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-left:12px">Объект</span>
+        <select id="analyticsProject" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 12px">
+          <option value="">Все объекты</option>
+        </select>
+        <button class="btn btn-outline" onclick="showCompareMode()" style="margin-left:auto;font-size:10px">⚖️ Сравнить объекты</button>
+        <div id="analyticsPeriodLabel" style="font-size:10px;color:var(--accent)"></div>
+      </div>
+
+      <!-- СРАВНЕНИЕ ОБЪЕКТОВ (скрыто по умолчанию) -->
+      <div id="comparePanel" style="display:none;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div style="font-family:'Unbounded',sans-serif;font-size:12px;font-weight:600">⚖️ Сравнение объектов</div>
+          <button class="btn btn-outline" onclick="hideCompareMode()" style="font-size:10px">✕ Закрыть</button>
+        </div>
+        <div id="compareTable" style="overflow-x:auto"></div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card inc">
           <div class="stat-label">Итого доходы</div>
@@ -2268,18 +2303,160 @@ function saveEdit() {
 function quickEditCat(id) { openEdit(id); }
 
 // ===================== ANALYTICS =====================
+// ── Фильтры аналитики ────────────────────────────────────────
+function getAnalyticsDateRange() {
+  const preset = document.getElementById('analyticsPreset')?.value || 'all';
+  const now = new Date();
+  let from = null, to = null;
+  if (preset === 'thisMonth') {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else if (preset === 'lastMonth') {
+    from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    to   = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else if (preset === 'thisQuarter') {
+    const q = Math.floor(now.getMonth() / 3);
+    from = new Date(now.getFullYear(), q * 3, 1);
+    to   = new Date(now.getFullYear(), q * 3 + 3, 0);
+  } else if (preset === 'thisYear') {
+    from = new Date(now.getFullYear(), 0, 1);
+    to   = new Date(now.getFullYear(), 11, 31);
+  } else if (preset === 'custom') {
+    const f = document.getElementById('analyticsDateFrom')?.value;
+    const t = document.getElementById('analyticsDateTo')?.value;
+    if (f) from = new Date(f);
+    if (t) to   = new Date(t);
+  }
+  return { from, to };
+}
+
+function getAnalyticsFiltered() {
+  const { from, to } = getAnalyticsDateRange();
+  const proj = document.getElementById('analyticsProject')?.value || '';
+  return transactions.filter(tx => {
+    if (proj && tx.project !== proj) return false;
+    if (tx.date) {
+      const d = new Date(tx.date);
+      if (from && d < from) return false;
+      if (to   && d > to)   return false;
+    }
+    return true;
+  });
+}
+
+function applyAnalyticsFilters() {
+  const preset = document.getElementById('analyticsPreset')?.value;
+  const customDiv = document.getElementById('analyticsCustomDates');
+  if (customDiv) customDiv.style.display = preset === 'custom' ? 'flex' : 'none';
+  const { from, to } = getAnalyticsDateRange();
+  const label = document.getElementById('analyticsPeriodLabel');
+  if (label && from && to) {
+    label.textContent = fmtDate(from.toISOString().substring(0,10)) + ' — ' + fmtDate(to.toISOString().substring(0,10));
+  } else if (label) { label.textContent = ''; }
+  renderAnalytics();
+  renderCharts();
+}
+
+function updateAnalyticsProjectSelect() {
+  const sel = document.getElementById('analyticsProject');
+  if (!sel) return;
+  const current = sel.value;
+  const projs = [...new Set(transactions.map(t => t.project).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Все объекты</option>' + projs.map(p => `<option value="${p}" ${p===current?'selected':''}>${p}</option>`).join('');
+}
+
+// ── Сравнение объектов ────────────────────────────────────────
+function showCompareMode() {
+  document.getElementById('comparePanel').style.display = 'block';
+  renderCompareTable();
+}
+function hideCompareMode() {
+  document.getElementById('comparePanel').style.display = 'none';
+}
+
+function renderCompareTable() {
+  const { from, to } = getAnalyticsDateRange();
+  const projs = [...new Set(transactions.map(t => t.project).filter(Boolean))].sort();
+  if (!projs.length) { document.getElementById('compareTable').innerHTML = '<div style="color:var(--muted);font-size:11px">Нет данных по объектам</div>'; return; }
+
+  const stats = projs.map(p => {
+    const txs = transactions.filter(tx => {
+      if (tx.project !== p) return false;
+      if (tx.date) {
+        const d = new Date(tx.date);
+        if (from && d < from) return false;
+        if (to   && d > to)   return false;
+      }
+      return true;
+    });
+    const income  = txs.filter(t => t.type==='income').reduce((s,t) => s+t.amount, 0);
+    const expense = txs.filter(t => t.type==='expense').reduce((s,t) => s+t.amount, 0);
+    return { name: p, income, expense, net: income - expense, count: txs.length };
+  });
+
+  const totIncome  = stats.reduce((s,r) => s+r.income, 0);
+  const totExpense = stats.reduce((s,r) => s+r.expense, 0);
+  const maxIncome  = Math.max(...stats.map(r => r.income), 1);
+  const maxExpense = Math.max(...stats.map(r => r.expense), 1);
+
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr style="border-bottom:1px solid var(--border)">
+      <th style="padding:8px 12px;text-align:left;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Объект</th>
+      <th style="padding:8px 12px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Доходы</th>
+      <th style="padding:8px 12px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Расходы</th>
+      <th style="padding:8px 12px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Поток</th>
+      <th style="padding:8px 12px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Операций</th>
+      <th style="padding:8px 12px;min-width:120px;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Визуально</th>
+    </tr></thead><tbody>`;
+
+  stats.forEach(r => {
+    const net = r.net;
+    const netColor = net >= 0 ? 'var(--income)' : 'var(--expense)';
+    const incW = Math.round((r.income / maxIncome) * 100);
+    const expW = Math.round((r.expense / maxExpense) * 100);
+    html += `<tr style="border-bottom:1px solid rgba(30,37,53,0.3)">
+      <td style="padding:10px 12px;font-weight:500">${esc(r.name)}</td>
+      <td style="padding:10px 12px;text-align:right;color:var(--income)">${fmt(r.income)}</td>
+      <td style="padding:10px 12px;text-align:right;color:var(--expense)">${fmt(r.expense)}</td>
+      <td style="padding:10px 12px;text-align:right;color:${netColor};font-weight:600">${fmt(net)}</td>
+      <td style="padding:10px 12px;text-align:right;color:var(--muted)">${r.count}</td>
+      <td style="padding:10px 12px">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <div style="height:5px;border-radius:3px;background:rgba(0,166,136,0.2)"><div style="height:100%;width:${incW}%;background:var(--income);border-radius:3px"></div></div>
+          <div style="height:5px;border-radius:3px;background:rgba(232,41,74,0.2)"><div style="height:100%;width:${expW}%;background:var(--expense);border-radius:3px"></div></div>
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  html += `<tr style="border-top:2px solid var(--border);font-weight:600">
+    <td style="padding:10px 12px">ИТОГО</td>
+    <td style="padding:10px 12px;text-align:right;color:var(--income)">${fmt(totIncome)}</td>
+    <td style="padding:10px 12px;text-align:right;color:var(--expense)">${fmt(totExpense)}</td>
+    <td style="padding:10px 12px;text-align:right;color:${totIncome-totExpense>=0?'var(--income)':'var(--expense)'}">${fmt(totIncome-totExpense)}</td>
+    <td style="padding:10px 12px;text-align:right;color:var(--muted)">${stats.reduce((s,r)=>s+r.count,0)}</td>
+    <td></td>
+  </tr></tbody></table>`;
+
+  document.getElementById('compareTable').innerHTML = html;
+}
+
 function renderAnalytics() {
-  const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  updateAnalyticsProjectSelect();
+  const txs = getAnalyticsFiltered();
+  const income  = txs.filter(t => t.type==='income').reduce((s,t) => s+t.amount, 0);
+  const expense = txs.filter(t => t.type==='expense').reduce((s,t) => s+t.amount, 0);
   const el = id => document.getElementById(id);
-  if (el('statIncome')) el('statIncome').textContent = fmt(income);
+  if (el('statIncome'))  el('statIncome').textContent  = fmt(income);
   if (el('statExpense')) el('statExpense').textContent = fmt(expense);
   if (el('statNet')) {
     const net = income - expense;
     el('statNet').textContent = fmt(net);
     el('statNet').style.color = net >= 0 ? 'var(--income)' : 'var(--expense)';
   }
-  if (el('statCount')) el('statCount').textContent = transactions.length;
+  if (el('statCount')) el('statCount').textContent = txs.length;
+  // Обновляем сравнение если открыто
+  if (document.getElementById('comparePanel')?.style.display !== 'none') renderCompareTable();
 }
 
 function renderCharts() {
@@ -2303,8 +2480,9 @@ const chartDefaults = {
 
 function renderMonthlyChart() {
   destroyChart('monthly');
+  const txs = getAnalyticsFiltered();
   const months = {};
-  transactions.forEach(tx => {
+  txs.forEach(tx => {
     const m = tx.date ? tx.date.substring(0, 7) : 'unknown';
     if (!months[m]) months[m] = { income: 0, expense: 0 };
     months[m][tx.type] += tx.amount;
@@ -2331,7 +2509,7 @@ function renderMonthlyChart() {
 
 function renderCategoryChart() {
   destroyChart('cat');
-  const expenses = transactions.filter(t => t.type === 'expense');
+  const expenses = getAnalyticsFiltered().filter(t => t.type === 'expense');
   const byCat = {};
   expenses.forEach(t => { byCat[t.category] = (byCat[t.category] || 0) + t.amount; });
   const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 8);
@@ -2354,7 +2532,7 @@ function renderCategoryChart() {
 function renderCounterpartyChart() {
   destroyChart('cp');
   const byCp = {};
-  transactions.forEach(t => { byCp[t.counterparty] = (byCp[t.counterparty] || 0) + t.amount; });
+  getAnalyticsFiltered().forEach(t => { byCp[t.counterparty] = (byCp[t.counterparty] || 0) + t.amount; });
   const sorted = Object.entries(byCp).filter(e => e[0] && e[0] !== 'Неизвестно').sort((a, b) => b[1] - a[1]).slice(0, 8);
   const ctx = document.getElementById('chartCounterparties')?.getContext('2d');
   if (!ctx || !sorted.length) return;
@@ -2378,7 +2556,7 @@ function renderCounterpartyChart() {
 
 function renderBalanceChart() {
   destroyChart('bal');
-  const sorted = [...transactions].sort((a, b) => a.date > b.date ? 1 : -1);
+  const sorted = [...getAnalyticsFiltered()].sort((a, b) => a.date > b.date ? 1 : -1);
   let bal = 0;
   const points = sorted.map(tx => {
     bal += tx.type === 'income' ? tx.amount : -tx.amount;
@@ -2778,7 +2956,7 @@ async function syncAppendGS() {
   }
 }
 
-// ── Загрузить транзакции из листа ПолнаяВыписка ──────────────
+// ── Загрузить из листа ПолнаяВыписка ─────────────────────────
 async function syncReadVypiski() {
   const url = getGsUrl();
   if (!url) return;
@@ -2786,24 +2964,37 @@ async function syncReadVypiski() {
   try {
     const resp = await fetch(url + '?action=readVypiski');
     const data = await resp.json();
-
     if (!data.ok) {
       gsSetStatus('❌ ' + (data.error || 'Ошибка'), 'var(--expense)');
       showToast(data.error || 'Ошибка загрузки', 'error');
       return;
     }
-
     const newTxs = (data.transactions || []).map(tx => ({
       ...tx,
       amount: parseFloat(tx.amount) || 0,
     }));
-
     if (!newTxs.length) {
       gsSetStatus('⚠️ Нет данных в листе ПолнаяВыписка', 'var(--accent2)');
       return;
     }
 
-    // Добавляем только те которых ещё нет (по id)
+    // Автоматически добавляем новые юрлица в список проектов
+    const existingProjNames = new Set(projects.map(p => p.name));
+    const newProjNames = [...new Set(newTxs.map(t => t.project).filter(Boolean))];
+    let addedProjs = 0;
+    newProjNames.forEach(name => {
+      if (!existingProjNames.has(name)) {
+        const newId = Math.max(0, ...projects.map(p => p.id)) + 1;
+        projects.push({ id: newId, name, code: name.substring(0,8).toUpperCase() });
+        addedProjs++;
+      }
+    });
+    if (addedProjs > 0) {
+      saveToStorage();
+      renderProjects();
+    }
+
+    // Добавляем только новые транзакции (без дублей по id)
     const existingIds = new Set(transactions.map(t => String(t.id)));
     const toAdd = newTxs.filter(tx => !existingIds.has(String(tx.id)));
 
@@ -2817,7 +3008,11 @@ async function syncReadVypiski() {
     saveToStorage();
     renderAll();
 
-    gsSetStatus(`✅ Загружено новых: ${toAdd.length} из ${newTxs.length} (дублей пропущено: ${newTxs.length - toAdd.length})`, 'var(--income)');
+    gsSetStatus(
+      `✅ Загружено: ${toAdd.length} новых (дублей пропущено: ${newTxs.length - toAdd.length})` +
+      (addedProjs ? ` | Добавлено объектов: ${addedProjs}` : ''),
+      'var(--income)'
+    );
     showToast(`Загружено ${toAdd.length} транзакций из ПолнаяВыписка`, 'success');
 
   } catch(e) {
