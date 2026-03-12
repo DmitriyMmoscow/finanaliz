@@ -2705,14 +2705,13 @@ async function syncWriteGS() {
   if (!transactions.length) { showToast('Нет данных для записи', 'error'); return; }
   gsSetStatus('⏳ Записываем данные в Google Sheets...', 'var(--muted)');
   try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'write',
-        payload: { transactions, directory, categories }
-      })
+    const body = JSON.stringify({
+      action: 'write',
+      payload: { transactions, directory, categories }
     });
+    const fd = new FormData();
+    fd.append('data', body);
+    const resp = await fetch(url, { method: 'POST', body: fd });
     const data = await resp.json();
     if (data.ok) {
       gsSetStatus(`✅ Записано: ${transactions.length} транзакций, ${directory.length} контрагентов, ${categories.length} статей ДДС`, 'var(--income)');
@@ -2762,11 +2761,9 @@ async function syncAppendGS() {
   if (!transactions.length) { showToast('Нет транзакций для добавления', 'error'); return; }
   gsSetStatus('⏳ Добавляем новые транзакции...', 'var(--muted)');
   try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'append', payload: { transactions } })
-    });
+    const fd2 = new FormData();
+    fd2.append('data', JSON.stringify({ action: 'append', payload: { transactions } }));
+    const resp = await fetch(url, { method: 'POST', body: fd2 });
     const data = await resp.json();
     if (data.ok) {
       gsSetStatus(`✅ Добавлено: ${data.added}, пропущено дублей: ${data.skipped}`, 'var(--income)');
