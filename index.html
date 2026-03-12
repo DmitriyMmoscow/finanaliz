@@ -925,6 +925,7 @@ tr:not(.tx-selected):hover td {
           <button class="btn btn-outline" onclick="syncWriteGS()">⬆ Записать всё в Sheets</button>
           <button class="btn btn-outline" onclick="syncReadGS()">⬇ Загрузить из Sheets</button>
           <button class="btn btn-outline" onclick="syncAppendGS()">➕ Добавить новые транзакции</button>
+          <button class="btn btn-primary" onclick="syncReadVypiski()" style="background:var(--accent3);color:#fff">📥 Загрузить из ПолнаяВыписка</button>
         </div>
         <div id="gsStatus" style="margin-top:8px;font-size:11px;color:var(--muted)"></div>
       </div>
@@ -2771,6 +2772,54 @@ async function syncAppendGS() {
     } else {
       gsSetStatus('❌ ' + (data.error||'Ошибка'), 'var(--expense)');
     }
+  } catch(e) {
+    gsSetStatus('❌ ' + e.message, 'var(--expense)');
+    showToast('Ошибка: ' + e.message, 'error');
+  }
+}
+
+// ── Загрузить транзакции из листа ПолнаяВыписка ──────────────
+async function syncReadVypiski() {
+  const url = getGsUrl();
+  if (!url) return;
+  gsSetStatus('⏳ Читаем данные из ПолнаяВыписка...', 'var(--muted)');
+  try {
+    const resp = await fetch(url + '?action=readVypiski');
+    const data = await resp.json();
+
+    if (!data.ok) {
+      gsSetStatus('❌ ' + (data.error || 'Ошибка'), 'var(--expense)');
+      showToast(data.error || 'Ошибка загрузки', 'error');
+      return;
+    }
+
+    const newTxs = (data.transactions || []).map(tx => ({
+      ...tx,
+      amount: parseFloat(tx.amount) || 0,
+    }));
+
+    if (!newTxs.length) {
+      gsSetStatus('⚠️ Нет данных в листе ПолнаяВыписка', 'var(--accent2)');
+      return;
+    }
+
+    // Добавляем только те которых ещё нет (по id)
+    const existingIds = new Set(transactions.map(t => String(t.id)));
+    const toAdd = newTxs.filter(tx => !existingIds.has(String(tx.id)));
+
+    if (toAdd.length === 0) {
+      gsSetStatus('✅ Все транзакции уже загружены, новых нет', 'var(--income)');
+      showToast('Новых транзакций нет', 'info');
+      return;
+    }
+
+    transactions = [...transactions, ...toAdd];
+    saveToStorage();
+    renderAll();
+
+    gsSetStatus(`✅ Загружено новых: ${toAdd.length} из ${newTxs.length} (дублей пропущено: ${newTxs.length - toAdd.length})`, 'var(--income)');
+    showToast(`Загружено ${toAdd.length} транзакций из ПолнаяВыписка`, 'success');
+
   } catch(e) {
     gsSetStatus('❌ ' + e.message, 'var(--expense)');
     showToast('Ошибка: ' + e.message, 'error');
