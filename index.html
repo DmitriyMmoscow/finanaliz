@@ -826,6 +826,7 @@ tr:not(.tx-selected):hover td {
           <div style="display:flex;gap:8px;align-items:center">
             <span id="txSelectedCount" style="font-size:11px;color:var(--muted);display:none"></span>
             <button id="btnGroupEditTx" class="btn btn-primary" onclick="openGroupEditTx()" style="display:none">✏️ Изменить группу</button>
+            <button id="btnDeleteSelectedTx" class="btn btn-danger" onclick="deleteSelectedTx()" style="display:none;background:var(--expense)">🗑 Удалить выбранные</button>
           </div>
         </div>
         <div class="table-scroll">
@@ -858,35 +859,35 @@ tr:not(.tx-selected):hover td {
     <div id="tab-analytics" class="page">
 
       <!-- ФИЛЬТРЫ АНАЛИТИКИ -->
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 20px">
-        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Период</span>
-        <select id="analyticsPreset" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 12px">
+      <div id="analyticsFiltersBar" style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 20px">
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);white-space:nowrap">Период</span>
+        <select id="analyticsPreset" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
           <option value="all">Все время</option>
           <option value="thisMonth">Текущий месяц</option>
           <option value="lastMonth">Прошлый месяц</option>
           <option value="thisQuarter">Текущий квартал</option>
           <option value="thisYear">Текущий год</option>
-          <option value="custom">Произвольный период</option>
+          <option value="custom">Произвольный</option>
         </select>
         <div id="analyticsCustomDates" style="display:none;gap:8px;align-items:center">
           <span style="font-size:9px;color:var(--muted)">С</span>
-          <input type="date" id="analyticsDateFrom" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 10px">
+          <input type="date" id="analyticsDateFrom" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
           <span style="font-size:9px;color:var(--muted)">По</span>
-          <input type="date" id="analyticsDateTo" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 10px">
+          <input type="date" id="analyticsDateTo" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
         </div>
-        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-left:12px">Объект</span>
-        <select id="analyticsProject" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 12px">
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-left:8px;white-space:nowrap">Объект</span>
+        <select id="analyticsProject" onchange="applyAnalyticsFilters()" style="font-size:11px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
           <option value="">Все объекты</option>
         </select>
-        <button class="btn btn-outline" onclick="showCompareMode()" style="margin-left:auto;font-size:10px">⚖️ Сравнить объекты</button>
-        <div id="analyticsPeriodLabel" style="font-size:10px;color:var(--accent)"></div>
+        <div id="analyticsPeriodLabel" style="font-size:10px;color:var(--accent);margin-left:4px"></div>
+        <button class="btn btn-outline" onclick="showCompareMode()" style="margin-left:auto;font-size:10px;white-space:nowrap">⚖️ Сравнить объекты</button>
       </div>
 
-      <!-- СРАВНЕНИЕ ОБЪЕКТОВ (скрыто по умолчанию) -->
+      <!-- СРАВНЕНИЕ ОБЪЕКТОВ -->
       <div id="comparePanel" style="display:none;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
           <div style="font-family:'Unbounded',sans-serif;font-size:12px;font-weight:600">⚖️ Сравнение объектов</div>
-          <button class="btn btn-outline" onclick="hideCompareMode()" style="font-size:10px">✕ Закрыть</button>
+          <button class="btn btn-outline" onclick="document.getElementById('comparePanel').style.display='none'" style="font-size:10px">✕ Закрыть</button>
         </div>
         <div id="compareTable" style="overflow-x:auto"></div>
       </div>
@@ -960,7 +961,7 @@ tr:not(.tx-selected):hover td {
           <button class="btn btn-outline" onclick="syncWriteGS()">⬆ Записать всё в Sheets</button>
           <button class="btn btn-outline" onclick="syncReadGS()">⬇ Загрузить из Sheets</button>
           <button class="btn btn-outline" onclick="syncAppendGS()">➕ Добавить новые транзакции</button>
-          <button class="btn btn-primary" onclick="syncReadVypiski()" style="background:var(--accent3);color:#fff">📥 Загрузить из ПолнаяВыписка</button>
+          <button class="btn btn-primary" onclick="syncReadVypiski()" style="background:#7c6fff;color:#fff">📥 Загрузить из ПолнаяВыписка</button>
         </div>
         <div id="gsStatus" style="margin-top:8px;font-size:11px;color:var(--muted)"></div>
       </div>
@@ -2171,8 +2172,27 @@ function updateTxSelection() {
   const count = selectedTxIds.size;
   const countEl = document.getElementById('txSelectedCount');
   const btn = document.getElementById('btnGroupEditTx');
+  const btnDel = document.getElementById('btnDeleteSelectedTx');
   if (countEl) { countEl.textContent = count > 0 ? `Выбрано: ${count}` : ''; countEl.style.display = count > 0 ? '' : 'none'; }
   if (btn) btn.style.display = count > 0 ? '' : 'none';
+  if (btnDel) btnDel.style.display = count > 0 ? '' : 'none';
+}
+
+function deleteSelectedTx() {
+  const count = selectedTxIds.size;
+  if (!count) return;
+  showConfirm(`Удалить ${count} транзакц${count===1?'ию':count<5?'ии':'ий'}? Это действие нельзя отменить.`, () => {
+    transactions = transactions.filter(tx => !selectedTxIds.has(tx.id));
+    selectedTxIds.clear();
+    const checkAll = document.getElementById('txCheckAll');
+    if (checkAll) checkAll.checked = false;
+    saveToStorage();
+    applyFilters();
+    renderAnalytics();
+    renderCharts();
+    updateTxSelection();
+    showToast(`Удалено: ${count} транзакций`, 'success');
+  });
 }
 
 function openGroupEditTx() {
@@ -2303,7 +2323,7 @@ function saveEdit() {
 function quickEditCat(id) { openEdit(id); }
 
 // ===================== ANALYTICS =====================
-// ── Фильтры аналитики ────────────────────────────────────────
+// ── Вспомогательные функции фильтрации аналитики ─────────────
 function getAnalyticsDateRange() {
   const preset = document.getElementById('analyticsPreset')?.value || 'all';
   const now = new Date();
@@ -2350,9 +2370,11 @@ function applyAnalyticsFilters() {
   if (customDiv) customDiv.style.display = preset === 'custom' ? 'flex' : 'none';
   const { from, to } = getAnalyticsDateRange();
   const label = document.getElementById('analyticsPeriodLabel');
-  if (label && from && to) {
-    label.textContent = fmtDate(from.toISOString().substring(0,10)) + ' — ' + fmtDate(to.toISOString().substring(0,10));
-  } else if (label) { label.textContent = ''; }
+  if (label) {
+    label.textContent = (from && to)
+      ? fmtDate(from.toISOString().substring(0,10)) + ' — ' + fmtDate(to.toISOString().substring(0,10))
+      : '';
+  }
   renderAnalytics();
   renderCharts();
 }
@@ -2362,90 +2384,80 @@ function updateAnalyticsProjectSelect() {
   if (!sel) return;
   const current = sel.value;
   const projs = [...new Set(transactions.map(t => t.project).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">Все объекты</option>' + projs.map(p => `<option value="${p}" ${p===current?'selected':''}>${p}</option>`).join('');
+  sel.innerHTML = '<option value="">Все объекты</option>' +
+    projs.map(p => `<option value="${p.replace(/"/g,'&quot;')}" ${p===current?'selected':''}>${p}</option>`).join('');
 }
 
-// ── Сравнение объектов ────────────────────────────────────────
 function showCompareMode() {
   document.getElementById('comparePanel').style.display = 'block';
   renderCompareTable();
 }
-function hideCompareMode() {
-  document.getElementById('comparePanel').style.display = 'none';
-}
 
 function renderCompareTable() {
   const { from, to } = getAnalyticsDateRange();
+  const el = document.getElementById('compareTable');
+  if (!el) return;
   const projs = [...new Set(transactions.map(t => t.project).filter(Boolean))].sort();
-  if (!projs.length) { document.getElementById('compareTable').innerHTML = '<div style="color:var(--muted);font-size:11px">Нет данных по объектам</div>'; return; }
-
+  if (!projs.length) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px">Нет данных по объектам</div>'; return; }
   const stats = projs.map(p => {
     const txs = transactions.filter(tx => {
       if (tx.project !== p) return false;
       if (tx.date) {
         const d = new Date(tx.date);
         if (from && d < from) return false;
-        if (to   && d > to)   return false;
+        if (to && d > to) return false;
       }
       return true;
     });
-    const income  = txs.filter(t => t.type==='income').reduce((s,t) => s+t.amount, 0);
-    const expense = txs.filter(t => t.type==='expense').reduce((s,t) => s+t.amount, 0);
-    return { name: p, income, expense, net: income - expense, count: txs.length };
+    const income  = txs.filter(t => t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const expense = txs.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    return { name:p, income, expense, net:income-expense, count:txs.length };
   });
-
-  const totIncome  = stats.reduce((s,r) => s+r.income, 0);
-  const totExpense = stats.reduce((s,r) => s+r.expense, 0);
-  const maxIncome  = Math.max(...stats.map(r => r.income), 1);
-  const maxExpense = Math.max(...stats.map(r => r.expense), 1);
-
+  const maxI = Math.max(...stats.map(r=>r.income),1);
+  const maxE = Math.max(...stats.map(r=>r.expense),1);
+  const totI = stats.reduce((s,r)=>s+r.income,0);
+  const totE = stats.reduce((s,r)=>s+r.expense,0);
   let html = `<table style="width:100%;border-collapse:collapse;font-size:11px">
     <thead><tr style="border-bottom:1px solid var(--border)">
-      <th style="padding:8px 12px;text-align:left;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Объект</th>
-      <th style="padding:8px 12px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Доходы</th>
-      <th style="padding:8px 12px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Расходы</th>
-      <th style="padding:8px 12px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Поток</th>
-      <th style="padding:8px 12px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Операций</th>
-      <th style="padding:8px 12px;min-width:120px;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Визуально</th>
+      <th style="padding:8px 10px;text-align:left;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Объект</th>
+      <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Доходы</th>
+      <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Расходы</th>
+      <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Поток</th>
+      <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Опер.</th>
+      <th style="padding:8px 10px;min-width:100px"></th>
     </tr></thead><tbody>`;
-
   stats.forEach(r => {
-    const net = r.net;
-    const netColor = net >= 0 ? 'var(--income)' : 'var(--expense)';
-    const incW = Math.round((r.income / maxIncome) * 100);
-    const expW = Math.round((r.expense / maxExpense) * 100);
-    html += `<tr style="border-bottom:1px solid rgba(30,37,53,0.3)">
-      <td style="padding:10px 12px;font-weight:500">${esc(r.name)}</td>
-      <td style="padding:10px 12px;text-align:right;color:var(--income)">${fmt(r.income)}</td>
-      <td style="padding:10px 12px;text-align:right;color:var(--expense)">${fmt(r.expense)}</td>
-      <td style="padding:10px 12px;text-align:right;color:${netColor};font-weight:600">${fmt(net)}</td>
-      <td style="padding:10px 12px;text-align:right;color:var(--muted)">${r.count}</td>
-      <td style="padding:10px 12px">
+    const nc = r.net>=0?'var(--income)':'var(--expense)';
+    const iw = Math.round(r.income/maxI*100);
+    const ew = Math.round(r.expense/maxE*100);
+    html += `<tr style="border-bottom:1px solid rgba(90,96,112,0.15)">
+      <td style="padding:9px 10px;font-weight:500">${r.name}</td>
+      <td style="padding:9px 10px;text-align:right;color:var(--income)">${fmt(r.income)}</td>
+      <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(r.expense)}</td>
+      <td style="padding:9px 10px;text-align:right;color:${nc};font-weight:600">${fmt(r.net)}</td>
+      <td style="padding:9px 10px;text-align:right;color:var(--muted)">${r.count}</td>
+      <td style="padding:9px 10px">
         <div style="display:flex;flex-direction:column;gap:3px">
-          <div style="height:5px;border-radius:3px;background:rgba(0,166,136,0.2)"><div style="height:100%;width:${incW}%;background:var(--income);border-radius:3px"></div></div>
-          <div style="height:5px;border-radius:3px;background:rgba(232,41,74,0.2)"><div style="height:100%;width:${expW}%;background:var(--expense);border-radius:3px"></div></div>
+          <div style="height:4px;border-radius:2px;background:rgba(0,212,170,0.15)"><div style="height:100%;width:${iw}%;background:var(--income);border-radius:2px"></div></div>
+          <div style="height:4px;border-radius:2px;background:rgba(255,77,109,0.15)"><div style="height:100%;width:${ew}%;background:var(--expense);border-radius:2px"></div></div>
         </div>
-      </td>
-    </tr>`;
+      </td></tr>`;
   });
-
-  html += `<tr style="border-top:2px solid var(--border);font-weight:600">
-    <td style="padding:10px 12px">ИТОГО</td>
-    <td style="padding:10px 12px;text-align:right;color:var(--income)">${fmt(totIncome)}</td>
-    <td style="padding:10px 12px;text-align:right;color:var(--expense)">${fmt(totExpense)}</td>
-    <td style="padding:10px 12px;text-align:right;color:${totIncome-totExpense>=0?'var(--income)':'var(--expense)'}">${fmt(totIncome-totExpense)}</td>
-    <td style="padding:10px 12px;text-align:right;color:var(--muted)">${stats.reduce((s,r)=>s+r.count,0)}</td>
-    <td></td>
-  </tr></tbody></table>`;
-
-  document.getElementById('compareTable').innerHTML = html;
+  html += `<tr style="border-top:2px solid var(--border);font-weight:700">
+    <td style="padding:9px 10px">ИТОГО</td>
+    <td style="padding:9px 10px;text-align:right;color:var(--income)">${fmt(totI)}</td>
+    <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(totE)}</td>
+    <td style="padding:9px 10px;text-align:right;color:${totI-totE>=0?'var(--income)':'var(--expense)'}">${fmt(totI-totE)}</td>
+    <td style="padding:9px 10px;text-align:right;color:var(--muted)">${stats.reduce((s,r)=>s+r.count,0)}</td>
+    <td></td></tr></tbody></table>`;
+  el.innerHTML = html;
 }
 
 function renderAnalytics() {
   updateAnalyticsProjectSelect();
   const txs = getAnalyticsFiltered();
-  const income  = txs.filter(t => t.type==='income').reduce((s,t) => s+t.amount, 0);
-  const expense = txs.filter(t => t.type==='expense').reduce((s,t) => s+t.amount, 0);
+  const income  = txs.filter(t => t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense = txs.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const el = id => document.getElementById(id);
   if (el('statIncome'))  el('statIncome').textContent  = fmt(income);
   if (el('statExpense')) el('statExpense').textContent = fmt(expense);
@@ -2455,7 +2467,6 @@ function renderAnalytics() {
     el('statNet').style.color = net >= 0 ? 'var(--income)' : 'var(--expense)';
   }
   if (el('statCount')) el('statCount').textContent = txs.length;
-  // Обновляем сравнение если открыто
   if (document.getElementById('comparePanel')?.style.display !== 'none') renderCompareTable();
 }
 
@@ -2480,9 +2491,8 @@ const chartDefaults = {
 
 function renderMonthlyChart() {
   destroyChart('monthly');
-  const txs = getAnalyticsFiltered();
   const months = {};
-  txs.forEach(tx => {
+  getAnalyticsFiltered().forEach(tx => {
     const m = tx.date ? tx.date.substring(0, 7) : 'unknown';
     if (!months[m]) months[m] = { income: 0, expense: 0 };
     months[m][tx.type] += tx.amount;
@@ -2956,11 +2966,12 @@ async function syncAppendGS() {
   }
 }
 
-// ── Загрузить из листа ПолнаяВыписка ─────────────────────────
+
+// ── Загрузить из листа ПолнаяВыписка ─────────────────────────────────────────
 async function syncReadVypiski() {
   const url = getGsUrl();
   if (!url) return;
-  gsSetStatus('⏳ Читаем данные из ПолнаяВыписка...', 'var(--muted)');
+  gsSetStatus('⏳ Читаем лист ПолнаяВыписка...', 'var(--muted)');
   try {
     const resp = await fetch(url + '?action=readVypiski');
     const data = await resp.json();
@@ -2969,58 +2980,43 @@ async function syncReadVypiski() {
       showToast(data.error || 'Ошибка загрузки', 'error');
       return;
     }
-    const newTxs = (data.transactions || []).map(tx => ({
-      ...tx,
-      amount: parseFloat(tx.amount) || 0,
-    }));
+    const newTxs = (data.transactions || []).map(tx => ({ ...tx, amount: parseFloat(tx.amount) || 0 }));
     if (!newTxs.length) {
-      gsSetStatus('⚠️ Нет данных в листе ПолнаяВыписка', 'var(--accent2)');
+      gsSetStatus('⚠️ Лист ПолнаяВыписка пуст', 'var(--accent2)');
       return;
     }
-
-    // Автоматически добавляем новые юрлица в список проектов
-    const existingProjNames = new Set(projects.map(p => p.name));
-    const newProjNames = [...new Set(newTxs.map(t => t.project).filter(Boolean))];
+    // Авто-добавляем новые юрлица в проекты
+    const existingNames = new Set(projects.map(p => p.name));
     let addedProjs = 0;
-    newProjNames.forEach(name => {
-      if (!existingProjNames.has(name)) {
-        const newId = Math.max(0, ...projects.map(p => p.id)) + 1;
-        projects.push({ id: newId, name, code: name.substring(0,8).toUpperCase() });
+    [...new Set(newTxs.map(t => t.project).filter(Boolean))].forEach(name => {
+      if (!existingNames.has(name)) {
+        projects.push({ id: Math.max(0, ...projects.map(p=>p.id)) + 1, name, code: name.substring(0,8).toUpperCase() });
         addedProjs++;
       }
     });
-    if (addedProjs > 0) {
-      saveToStorage();
-      renderProjects();
-    }
-
-    // Добавляем только новые транзакции (без дублей по id)
+    if (addedProjs > 0) { saveToStorage(); renderProjects(); }
+    // Добавляем без дублей
     const existingIds = new Set(transactions.map(t => String(t.id)));
     const toAdd = newTxs.filter(tx => !existingIds.has(String(tx.id)));
-
-    if (toAdd.length === 0) {
-      gsSetStatus('✅ Все транзакции уже загружены, новых нет', 'var(--income)');
+    if (!toAdd.length) {
+      gsSetStatus('✅ Всё уже загружено, новых транзакций нет', 'var(--income)');
       showToast('Новых транзакций нет', 'info');
       return;
     }
-
     transactions = [...transactions, ...toAdd];
     saveToStorage();
     renderAll();
-
     gsSetStatus(
-      `✅ Загружено: ${toAdd.length} новых (дублей пропущено: ${newTxs.length - toAdd.length})` +
+      `✅ Загружено: ${toAdd.length} новых, пропущено дублей: ${newTxs.length - toAdd.length}` +
       (addedProjs ? ` | Добавлено объектов: ${addedProjs}` : ''),
       'var(--income)'
     );
     showToast(`Загружено ${toAdd.length} транзакций из ПолнаяВыписка`, 'success');
-
   } catch(e) {
     gsSetStatus('❌ ' + e.message, 'var(--expense)');
     showToast('Ошибка: ' + e.message, 'error');
   }
 }
-
 // ===================== DIRECTORY (Контрагент → ДДС) =====================
 function loadDirectory(event) {
   const file = event.target.files[0];
