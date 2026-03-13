@@ -1020,7 +1020,24 @@ tr:not(.tx-selected):hover td {
         </table>
       </div>
 
-      <div class="table-wrap">
+      <!-- ГРУППЫ ЗАТРАТ -->
+      <div class="table-wrap" style="margin-top:24px">
+        <div class="table-header">
+          <div class="table-title">Группы затрат</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="newCatGroupInput" placeholder="Название новой группы..."
+            style="flex:1;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px"
+            onkeydown="if(event.key==='Enter')addCatGroupFromInput()">
+          <button class="btn btn-primary" onclick="addCatGroupFromInput()">+ Добавить группу</button>
+        </div>
+        <table>
+          <thead><tr><th>Название группы</th><th style="width:100px"></th></tr></thead>
+          <tbody id="catGroupsTable"></tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap" style="margin-top:24px">
         <div class="table-header">
           <div class="table-title">Проекты</div>
           <button class="btn btn-primary" onclick="addProject()">+ Добавить</button>
@@ -1155,6 +1172,10 @@ tr:not(.tx-selected):hover td {
       </select>
     </div>
     <div class="form-group" style="margin-bottom:12px">
+      <label>Группа затрат</label>
+      <select id="catGroup" style="width:100%"></select>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
       <label>Ключевые слова (через запятую)</label>
       <input type="text" id="catKeywords" placeholder="аренда, офис, помещение">
     </div>
@@ -1192,6 +1213,7 @@ function init() {
 }
 
 function loadFromStorage() {
+  loadCatGroups();
   try {
     const t = localStorage.getItem('fa_transactions');
     const c = localStorage.getItem('fa_categories');
@@ -1234,6 +1256,7 @@ function saveToStorage() {
 }
 
 function renderAll() {
+  renderCatGroupsTable();
   updateHeaderStats();
   applyFilters();
   renderAnalytics();
@@ -2951,6 +2974,54 @@ const CAT_GROUP_MAP = {
   'Связь и интернет':                                         'IT и сервисы',
   'Услуги программистов (доработка / поддержка сайта и пр.)': 'IT и сервисы',
 };
+// Динамический список групп (пользователь может добавлять)
+let catGroupsList = [
+  'Административно-хозяйственные','Закупки и материалы','Консалтинговые услуги',
+  'Кредиты','Маркетинг','Медицинские услуги','Налоги с ФОТ','Оплата труда',
+  'Помещение','Транспорт и логистика','Услуги банка','IT и сервисы','Прочее'
+];
+function loadCatGroups() {
+  const s = localStorage.getItem('fa_catGroups');
+  if (s) catGroupsList = JSON.parse(s);
+}
+function saveCatGroups() {
+  localStorage.setItem('fa_catGroups', JSON.stringify(catGroupsList));
+}
+function addCatGroup(name) {
+  name = name.trim();
+  if (!name || catGroupsList.includes(name)) { showToast('Группа уже существует или пустое название', 'error'); return; }
+  catGroupsList.push(name);
+  saveCatGroups();
+  renderCatGroupsTable();
+  renderCatTable(); // обновить select-ы в таблице статей
+  showToast('Группа добавлена: ' + name, 'success');
+}
+function addCatGroupFromInput() {
+  const inp = document.getElementById('newCatGroupInput');
+  if (!inp) return;
+  addCatGroup(inp.value);
+  inp.value = '';
+}
+
+function deleteCatGroup(name) {
+  catGroupsList = catGroupsList.filter(g => g !== name);
+  saveCatGroups();
+  renderCatGroupsTable();
+  renderCatTable();
+  showToast('Группа удалена', 'success');
+}
+function renderCatGroupsTable() {
+  const body = document.getElementById('catGroupsTable');
+  if (!body) return;
+  body.innerHTML = catGroupsList.map(g => `
+    <tr>
+      <td style="font-weight:500">${g}</td>
+      <td style="text-align:right">
+        <button class="btn btn-danger" style="font-size:10px;padding:3px 8px" onclick="deleteCatGroup('${g.replace(/'/g,"\\'")}')">Удалить</button>
+      </td>
+    </tr>`).join('');
+}
+
 function getCatGroup(catName) {
   // Сначала проверяем сохранённую группу в объекте категории
   const catObj = categories.find(c => c.name === catName);
@@ -3310,6 +3381,9 @@ function openCatModal(id) {
   document.getElementById('catName').value = '';
   document.getElementById('catType').value = 'expense';
   document.getElementById('catKeywords').value = '';
+  const gs = document.getElementById('catGroup');
+  if (gs) gs.innerHTML = '<option value="">— не указана —</option>' +
+    catGroupsList.map(g => `<option value="${g}">${g}</option>`).join('');
   document.getElementById('catModalOverlay').classList.add('open');
 }
 
@@ -3320,8 +3394,8 @@ function saveCat() {
   if (!name) { showToast('Введите название', 'error'); return; }
   const type = document.getElementById('catType').value;
   const keywords = document.getElementById('catKeywords').value.split(',').map(k => k.trim()).filter(Boolean);
+  const group = document.getElementById('catGroup')?.value || CAT_GROUP_MAP[name] || '';
   const newId = Math.max(0, ...categories.map(c => c.id)) + 1;
-  const group = CAT_GROUP_MAP[name] || '';
   categories.push({ id: newId, name, type, keywords, group });
   closeCatModal();
   saveToStorage();
@@ -3439,14 +3513,18 @@ async function syncWriteGS() {
   try {
     const body = JSON.stringify({
       action: 'write',
-      payload: { transactions, directory, categories }
+      payload: { transactions, directory, categories, projects, catGroups: catGroupsList }
     });
     const fd = new FormData();
     fd.append('data', body);
     const resp = await fetch(url, { method: 'POST', body: fd });
     const data = await resp.json();
     if (data.ok) {
-      gsSetStatus(`✅ Записано: ${transactions.length} транзакций, ${directory.length} контрагентов, ${categories.length} статей ДДС`, 'var(--income)');
+      gsSetStatus(
+        `✅ Записано: ${transactions.length} транзакций, ${categories.length} статей ДДС, ` +
+        `${projects.length} объектов, ${catGroupsList.length} групп, ${directory.length} контрагентов`,
+        'var(--income)'
+      );
       showToast('Данные записаны в Google Sheets!', 'success');
     } else {
       gsSetStatus('❌ ' + (data.error || 'Ошибка записи'), 'var(--expense)');
@@ -3477,9 +3555,20 @@ async function syncReadGS() {
     if (data.categories && data.categories.length) {
       categories = data.categories.map(c => ({ ...c, id: Number(c.id)||c.id, keywords: typeof c.keywords === 'string' ? c.keywords.split(',').map(k=>k.trim()).filter(Boolean) : c.keywords||[] }));
     }
+    if (data.projects && data.projects.length) {
+      projects = data.projects.map(p => ({ ...p, id: Number(p.id)||p.id }));
+    }
+    if (data.catGroups && data.catGroups.length) {
+      catGroupsList = data.catGroups;
+      saveCatGroups();
+    }
     saveToStorage();
     renderAll();
-    gsSetStatus(`✅ Загружено: ${transactions.length} транзакций, ${directory.length} контрагентов`, 'var(--income)');
+    gsSetStatus(
+      `✅ Загружено: ${transactions.length} транзакций, ${categories.length} статей ДДС, ` +
+      `${projects.length} объектов, ${catGroupsList.length} групп`,
+      'var(--income)'
+    );
     showToast('Данные загружены из Google Sheets!', 'success');
   } catch(e) {
     gsSetStatus('❌ ' + e.message, 'var(--expense)');
