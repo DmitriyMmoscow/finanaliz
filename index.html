@@ -814,7 +814,7 @@ tr:not(.tx-selected):hover td {
           <input type="date" id="filterDateTo" onchange="applyFilters()">
         </div>
         <div class="filter-group">
-          <input type="text" id="filterSearch" placeholder="Поиск контрагента..." oninput="applyFilters()" style="width:200px">
+          <input type="text" id="filterSearch" placeholder="Поиск по контрагенту, назначению, сумме..." oninput="applyFilters()" style="width:200px">
         </div>
         <button class="btn btn-outline" onclick="resetFilters()">Сбросить</button>
         <button class="btn btn-primary" onclick="exportExcel()" style="margin-left:auto">⬇ Excel</button>
@@ -2099,7 +2099,9 @@ function applyFilters() {
   if (to) filtered = filtered.filter(t => t.date <= to);
   if (search) filtered = filtered.filter(t =>
     (t.counterparty || '').toLowerCase().includes(search) ||
-    (t.purpose || '').toLowerCase().includes(search)
+    (t.purpose || '').toLowerCase().includes(search) ||
+    (t.category || '').toLowerCase().includes(search) ||
+    String(t.amount || '').includes(search)
   );
 
   filtered.sort((a, b) => {
@@ -2312,6 +2314,7 @@ function inlineSetCat(id, value) {
   saveToStorage();
   renderAnalytics();
   renderDDS();
+  showToast(`✅ Статья ДДС сохранена: ${value}`, 'success');
 }
 
 function inlineSetProject(id, value) {
@@ -3344,11 +3347,12 @@ function ddsToggleAllGroups(expand) {
 function renderCatTable() {
   const body = document.getElementById('catTable');
   if (!body) return;
+  // Для каждой категории подтягиваем группу из CAT_GROUP_MAP если поле не заполнено
+  const groupOptions = `<option value="Административно-хозяйственные">Административно-хозяйственные</option><option value="Закупки и материалы">Закупки и материалы</option><option value="Консалтинговые услуги">Консалтинговые услуги</option><option value="Кредиты">Кредиты</option><option value="Маркетинг">Маркетинг</option><option value="Медицинские услуги">Медицинские услуги</option><option value="Налоги с ФОТ">Налоги с ФОТ</option><option value="Оплата труда">Оплата труда</option><option value="Помещение">Помещение</option><option value="Транспорт и логистика">Транспорт и логистика</option><option value="Услуги банка">Услуги банка</option><option value="IT и сервисы">IT и сервисы</option><option value="Прочее">Прочее</option>`;
   body.innerHTML = categories.map(c => {
     const currentGroup = c.group || getCatGroup(c.name);
-    // Берём группы из catGroupsList (динамический список, включает новые группы)
     const opts = '<option value="">— выбрать —</option>' +
-      catGroupsList.map(g =>
+      ['Административно-хозяйственные', 'Закупки и материалы', 'Консалтинговые услуги', 'Кредиты', 'Маркетинг', 'Медицинские услуги', 'Налоги с ФОТ', 'Оплата труда', 'Помещение', 'Транспорт и логистика', 'Услуги банка', 'IT и сервисы', 'Прочее'].map(g =>
         `<option value="${g}" ${g===currentGroup?'selected':''}>${g}</option>`
       ).join('');
     return `
