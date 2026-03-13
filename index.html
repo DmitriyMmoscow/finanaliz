@@ -2399,6 +2399,7 @@ function updateAnalyticsProjectSelect() {
 
 // ── Состояние сравнения объектов ─────────────────────────────
 let _compareMode = 'summary'; // 'summary' | 'bycat'
+let _compareCatMode = 'flat'; // 'flat' | 'group' — режим в bycat
 let _compareDrillProj = null; // null = все, string = конкретный объект
 let _compareDrillCat  = null; // null = все статьи, string = конкретная статья
 
@@ -2502,26 +2503,30 @@ function _renderCompareSummary(el) {
 // ── Режим 2: Разбивка по статьям затрат (все объекты или один) ──
 function _renderCompareByCat(el) {
   const proj = _compareDrillProj;
-  const title = proj ? `📂 ${proj} — по статьям` : '📂 Все объекты — по статьям';
-
-  // Собираем все статьи
   const txsAll = _getTxsFor(proj, null);
   const cats = [...new Set(txsAll.map(t => t.category).filter(Boolean))].sort();
-
-  // Если смотрим все объекты — строим матрицу статья × объект
   const projs = proj ? [proj] : [...new Set(transactions.map(t=>t.project).filter(Boolean))].sort();
+
+  // Кнопки переключения режима (только для одного объекта или все объекты)
+  const modeButtons = proj ? `
+    <div style="display:flex;gap:4px;margin-left:8px">
+      <button onclick="_compareCatMode='flat';renderCompareTable()" style="font-size:9px;padding:3px 8px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:${_compareCatMode==='flat'?'var(--accent)':'none'};color:${_compareCatMode==='flat'?'#fff':'var(--muted)'}">Список</button>
+      <button onclick="_compareCatMode='group';renderCompareTable()" style="font-size:9px;padding:3px 8px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:${_compareCatMode==='group'?'var(--accent)':'none'};color:${_compareCatMode==='group'?'#fff':'var(--muted)'}">Группы</button>
+    </div>` : '';
+
+  const title = proj ? `📂 ${proj} — по статьям` : '📂 Все объекты — по статьям';
 
   let h = `
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
     <button class="btn btn-outline" style="font-size:10px;padding:5px 12px" onclick="_compareMode='summary';_compareDrillProj=null;renderCompareTable()">← Назад</button>
     <span style="font-size:12px;font-weight:600">${title}</span>
-    ${proj ? '' : `<span style="font-size:10px;color:var(--muted);margin-left:4px">Нажмите на строку чтобы увидеть по объектам</span>`}
+    ${modeButtons}
+    ${proj ? '' : `<span style="font-size:10px;color:var(--muted);margin-left:4px">Нажмите на строку чтобы детализировать</span>`}
   </div>`;
 
   if (!cats.length) { el.innerHTML = h + '<div style="color:var(--muted);font-size:11px">Нет данных</div>'; return; }
 
   if (proj) {
-    // Один объект — таблица: статья | доходы | расходы | поток | кол-во → провал в транзакции
     const stats = cats.map(cat => {
       const txs = _getTxsFor(proj, cat);
       const income  = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
@@ -2532,46 +2537,112 @@ function _renderCompareByCat(el) {
     const totI=stats.reduce((s,r)=>s+r.income,0), totE=stats.reduce((s,r)=>s+r.expense,0);
     const maxE=Math.max(...stats.map(r=>r.expense),1);
 
-    h += `<table style="width:100%;border-collapse:collapse;font-size:11px">
-      <thead><tr style="border-bottom:1px solid var(--border)">
-        <th style="padding:8px 10px;text-align:left;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Статья</th>
-        <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Доходы</th>
-        <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Расходы</th>
-        <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Поток</th>
-        <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Опер.</th>
-        <th style="padding:8px 10px;min-width:80px"></th>
-        <th style="width:80px"></th>
-      </tr></thead><tbody>`;
+    if (_compareCatMode === 'group') {
+      // Группированный вид
+      const groups = {};
+      stats.forEach(r => {
+        const g = getCatGroup(r.cat);
+        if (!groups[g]) groups[g] = { income:0, expense:0, net:0, count:0, items:[] };
+        groups[g].income  += r.income;
+        groups[g].expense += r.expense;
+        groups[g].net     += r.net;
+        groups[g].count   += r.count;
+        groups[g].items.push(r);
+      });
+      const sortedG = Object.entries(groups).sort((a,b)=>b[1].expense-a[1].expense);
 
-    stats.forEach(r => {
-      const nc=r.net>=0?'var(--income)':'var(--expense)';
-      const ew=Math.round(r.expense/maxE*100);
-      const penc=encodeURIComponent(proj), cenc=encodeURIComponent(r.cat);
-      h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.15);cursor:pointer"
-          onclick="_compareMode='drill_transactions';_compareDrillProj=decodeURIComponent('${penc}');_compareDrillCat=decodeURIComponent('${cenc}');renderCompareTable()" title="Смотреть транзакции">
-        <td style="padding:9px 10px;font-weight:500">🔍 ${r.cat}</td>
-        <td style="padding:9px 10px;text-align:right;color:var(--income)">${r.income?fmt(r.income):'—'}</td>
-        <td style="padding:9px 10px;text-align:right;color:var(--expense)">${r.expense?fmt(r.expense):'—'}</td>
-        <td style="padding:9px 10px;text-align:right;color:${nc};font-weight:600">${fmt(r.net)}</td>
-        <td style="padding:9px 10px;text-align:right;color:var(--muted)">${r.count}</td>
-        <td style="padding:9px 10px">
-          <div style="height:4px;border-radius:2px;background:rgba(255,77,109,0.15)"><div style="height:100%;width:${ew}%;background:var(--expense);border-radius:2px"></div></div>
-        </td>
-        <td style="padding:9px 10px;font-size:10px;color:var(--accent)">→ транзакции</td>
-      </tr>`;
-    });
+      h += `
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button onclick="document.querySelectorAll('[id^=cmpgrp_]').forEach(e=>e.style.display='');document.querySelectorAll('.cmp-arrow').forEach(e=>e.textContent='▼')" style="font-size:9px;padding:3px 8px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted)">▼ Развернуть всё</button>
+        <button onclick="document.querySelectorAll('[id^=cmpgrp_]').forEach(e=>e.style.display='none');document.querySelectorAll('.cmp-arrow').forEach(e=>e.textContent='▶')" style="font-size:9px;padding:3px 8px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted)">▶ Свернуть всё</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:8px 10px;text-align:left;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Группа / Статья</th>
+          <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Доходы</th>
+          <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Расходы</th>
+          <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Поток</th>
+          <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Опер.</th>
+        </tr></thead><tbody>`;
 
-    h += `<tr style="border-top:2px solid var(--border);font-weight:700">
-      <td style="padding:9px 10px">ИТОГО</td>
-      <td style="padding:9px 10px;text-align:right;color:var(--income)">${fmt(totI)}</td>
-      <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(totE)}</td>
-      <td style="padding:9px 10px;text-align:right;color:${totI-totE>=0?'var(--income)':'var(--expense)'}">${fmt(totI-totE)}</td>
-      <td style="padding:9px 10px;text-align:right;color:var(--muted)">${stats.reduce((s,r)=>s+r.count,0)}</td>
-      <td></td><td></td>
-    </tr></tbody></table>`;
+      sortedG.forEach(([group, gd]) => {
+        const gid = 'cmpgrp_' + group.replace(/[^a-zA-Zа-яА-Я0-9]/g,'_');
+        const nc = gd.net>=0?'var(--income)':'var(--expense)';
+        h += `<tr style="background:var(--surface2);cursor:pointer;font-weight:600;border-bottom:1px solid var(--border)"
+            onclick="var s=document.getElementById('${gid}');s.style.display=s.style.display==='none'?'':'none';this.querySelector('.cmp-arrow').textContent=s.style.display==='none'?'▶':'▼'">
+          <td style="padding:9px 10px"><span class="cmp-arrow" style="font-size:9px;color:var(--muted);margin-right:6px">▼</span>${group}</td>
+          <td style="padding:9px 10px;text-align:right;color:var(--income)">${gd.income?fmt(gd.income):'—'}</td>
+          <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(gd.expense)}</td>
+          <td style="padding:9px 10px;text-align:right;color:${nc};font-weight:700">${fmt(gd.net)}</td>
+          <td style="padding:9px 10px;text-align:right;color:var(--muted)">${gd.count}</td>
+        </tr>`;
+        h += `<tbody id="${gid}">`;
+        gd.items.sort((a,b)=>b.expense-a.expense).forEach(r => {
+          const nc2=r.net>=0?'var(--income)':'var(--expense)';
+          const penc=encodeURIComponent(proj), cenc=encodeURIComponent(r.cat);
+          h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.1);cursor:pointer"
+              onclick="_compareMode='drill_transactions';_compareDrillProj=decodeURIComponent('${penc}');_compareDrillCat=decodeURIComponent('${cenc}');renderCompareTable()">
+            <td style="padding:8px 10px;padding-left:28px;font-size:11px">🔍 ${r.cat}</td>
+            <td style="padding:8px 10px;text-align:right;color:var(--income);font-size:11px">${r.income?fmt(r.income):'—'}</td>
+            <td style="padding:8px 10px;text-align:right;color:var(--expense);font-size:11px">${r.expense?fmt(r.expense):'—'}</td>
+            <td style="padding:8px 10px;text-align:right;color:${nc2};font-size:11px">${fmt(r.net)}</td>
+            <td style="padding:8px 10px;text-align:right;color:var(--muted);font-size:11px">${r.count}</td>
+          </tr>`;
+        });
+        h += `</tbody>`;
+      });
+
+      h += `<tr style="border-top:2px solid var(--border);font-weight:700">
+        <td style="padding:9px 10px">ИТОГО</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--income)">${fmt(totI)}</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(totE)}</td>
+        <td style="padding:9px 10px;text-align:right;color:${totI-totE>=0?'var(--income)':'var(--expense)'}">${fmt(totI-totE)}</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--muted)">${stats.reduce((s,r)=>s+r.count,0)}</td>
+      </tr></tbody></table>`;
+
+    } else {
+      // Плоский вид (как раньше)
+      h += `<table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:8px 10px;text-align:left;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Статья</th>
+          <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Доходы</th>
+          <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Расходы</th>
+          <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Поток</th>
+          <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Опер.</th>
+          <th style="padding:8px 10px;min-width:80px"></th>
+          <th style="width:80px"></th>
+        </tr></thead><tbody>`;
+
+      stats.forEach(r => {
+        const nc=r.net>=0?'var(--income)':'var(--expense)';
+        const ew=Math.round(r.expense/maxE*100);
+        const penc=encodeURIComponent(proj), cenc=encodeURIComponent(r.cat);
+        h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.15);cursor:pointer"
+            onclick="_compareMode='drill_transactions';_compareDrillProj=decodeURIComponent('${penc}');_compareDrillCat=decodeURIComponent('${cenc}');renderCompareTable()">
+          <td style="padding:9px 10px;font-weight:500">🔍 ${r.cat}</td>
+          <td style="padding:9px 10px;text-align:right;color:var(--income)">${r.income?fmt(r.income):'—'}</td>
+          <td style="padding:9px 10px;text-align:right;color:var(--expense)">${r.expense?fmt(r.expense):'—'}</td>
+          <td style="padding:9px 10px;text-align:right;color:${nc};font-weight:600">${fmt(r.net)}</td>
+          <td style="padding:9px 10px;text-align:right;color:var(--muted)">${r.count}</td>
+          <td style="padding:9px 10px">
+            <div style="height:4px;border-radius:2px;background:rgba(255,77,109,0.15)"><div style="height:100%;width:${ew}%;background:var(--expense);border-radius:2px"></div></div>
+          </td>
+          <td style="padding:9px 10px;font-size:10px;color:var(--accent)">→ транзакции</td>
+        </tr>`;
+      });
+
+      h += `<tr style="border-top:2px solid var(--border);font-weight:700">
+        <td style="padding:9px 10px">ИТОГО</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--income)">${fmt(totI)}</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(totE)}</td>
+        <td style="padding:9px 10px;text-align:right;color:${totI-totE>=0?'var(--income)':'var(--expense)'}">${fmt(totI-totE)}</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--muted)">${stats.reduce((s,r)=>s+r.count,0)}</td>
+        <td></td><td></td>
+      </tr></tbody></table>`;
+    }
 
   } else {
-    // Все объекты — матрица: строка=статья, колонки=объекты
+    // Все объекты — матрица статья × объект с группировкой
     const catStats = cats.map(cat => {
       const byProj = {};
       projs.forEach(p => {
@@ -2582,24 +2653,53 @@ function _renderCompareByCat(el) {
       return { cat, byProj, total };
     }).filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
 
-    h += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:10px;min-width:600px">
+    const totByProj = {};
+    projs.forEach(p => { totByProj[p] = catStats.reduce((s,r)=>s+(r.byProj[p]||0),0); });
+
+    // Группируем для матрицы
+    const groups = {};
+    catStats.forEach(r => {
+      const g = getCatGroup(r.cat);
+      if (!groups[g]) groups[g] = { total:0, items:[], byProj:{} };
+      groups[g].total += r.total;
+      groups[g].items.push(r);
+      projs.forEach(p => { groups[g].byProj[p] = (groups[g].byProj[p]||0) + (r.byProj[p]||0); });
+    });
+    const sortedG = Object.entries(groups).sort((a,b)=>b[1].total-a[1].total);
+
+    h += `
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button onclick="document.querySelectorAll('[id^=cmpallgrp_]').forEach(e=>e.style.display='');document.querySelectorAll('.cmpall-arrow').forEach(e=>e.textContent='▼')" style="font-size:9px;padding:3px 8px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted)">▼ Развернуть всё</button>
+      <button onclick="document.querySelectorAll('[id^=cmpallgrp_]').forEach(e=>e.style.display='none');document.querySelectorAll('.cmpall-arrow').forEach(e=>e.textContent='▶')" style="font-size:9px;padding:3px 8px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted)">▶ Свернуть всё</button>
+    </div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:10px;min-width:600px">
       <thead><tr style="border-bottom:1px solid var(--border)">
-        <th style="padding:7px 10px;text-align:left;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;min-width:160px">Статья расходов</th>
+        <th style="padding:7px 10px;text-align:left;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;min-width:180px">Группа / Статья</th>
         ${projs.map(p=>`<th style="padding:7px 8px;text-align:right;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;white-space:nowrap">${p}</th>`).join('')}
         <th style="padding:7px 10px;text-align:right;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase">Итого</th>
       </tr></thead><tbody>`;
 
-    catStats.forEach(r => {
-      const penc=encodeURIComponent(r.cat);
-      h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.1)">
-        <td style="padding:8px 10px;font-weight:500;cursor:pointer;color:var(--accent)" onclick="_compareMode='bycat';_compareDrillCat=decodeURIComponent('${penc}');renderCompareTable()">${r.cat}</td>
-        ${projs.map(p=>`<td style="padding:8px 8px;text-align:right;color:var(--expense)">${r.byProj[p]?fmt(r.byProj[p]):'—'}</td>`).join('')}
-        <td style="padding:8px 10px;text-align:right;font-weight:600;color:var(--expense)">${fmt(r.total)}</td>
-      </tr>`;
+    sortedG.forEach(([group, gd]) => {
+      const gid = 'cmpallgrp_' + group.replace(/[^a-zA-Zа-яА-Я0-9]/g,'_');
+      h += `<tr style="background:var(--surface2);font-weight:600;cursor:pointer;border-bottom:1px solid var(--border)"
+          onclick="var s=document.getElementById('${gid}');s.style.display=s.style.display==='none'?'':'none';this.querySelector('.cmpall-arrow').textContent=s.style.display==='none'?'▶':'▼'">
+        <td style="padding:8px 10px"><span class="cmpall-arrow" style="font-size:9px;color:var(--muted);margin-right:6px">▼</span>${group}</td>
+        ${projs.map(p=>`<td style="padding:8px 8px;text-align:right;color:var(--expense)">${gd.byProj[p]?fmt(gd.byProj[p]):'—'}</td>`).join('')}
+        <td style="padding:8px 10px;text-align:right;color:var(--expense)">${fmt(gd.total)}</td>
+      </tr>
+      <tbody id="${gid}">`;
+
+      gd.items.sort((a,b)=>b.total-a.total).forEach(r => {
+        const penc=encodeURIComponent(r.cat);
+        h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.08)">
+          <td style="padding:7px 10px;padding-left:26px;cursor:pointer;color:var(--accent)" onclick="_compareMode='bycat';_compareDrillCat=decodeURIComponent('${penc}');renderCompareTable()">${r.cat}</td>
+          ${projs.map(p=>`<td style="padding:7px 8px;text-align:right;color:var(--expense);font-size:10px">${r.byProj[p]?fmt(r.byProj[p]):'—'}</td>`).join('')}
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:var(--expense)">${fmt(r.total)}</td>
+        </tr>`;
+      });
+      h += `</tbody>`;
     });
 
-    const totByProj = {};
-    projs.forEach(p => { totByProj[p] = catStats.reduce((s,r)=>s+(r.byProj[p]||0),0); });
     h += `<tr style="border-top:2px solid var(--border);font-weight:700">
       <td style="padding:9px 10px">ИТОГО расходы</td>
       ${projs.map(p=>`<td style="padding:9px 8px;text-align:right;color:var(--expense)">${fmt(totByProj[p])}</td>`).join('')}
@@ -3082,10 +3182,23 @@ function buildDDSSectionGrouped(sorted, total, color) {
   return `<div class="dds-card">
     <div class="dds-card-header">
       <span>Расходы</span>
-      <span style="color:${color}">${fmt(total)}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button onclick="ddsToggleAllGroups(true)" style="font-size:9px;padding:3px 8px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted)">▼ Развернуть</button>
+        <button onclick="ddsToggleAllGroups(false)" style="font-size:9px;padding:3px 8px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted)">▶ Свернуть</button>
+        <span style="color:${color}">${fmt(total)}</span>
+      </div>
     </div>
     ${rows || '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px">Нет данных</div>'}
   </div>`;
+}
+
+function ddsToggleAllGroups(expand) {
+  document.querySelectorAll('[id^="ddsgrp_"]').forEach(el => {
+    el.style.display = expand ? '' : 'none';
+  });
+  document.querySelectorAll('.grp-arrow').forEach(el => {
+    el.textContent = expand ? '▼' : '▶';
+  });
 }
 
 // ===================== CATEGORIES =====================
