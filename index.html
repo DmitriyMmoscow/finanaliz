@@ -826,6 +826,7 @@ tr:not(.tx-selected):hover td {
           <div style="display:flex;gap:8px;align-items:center">
             <span id="txSelectedCount" style="font-size:11px;color:var(--muted);display:none"></span>
             <button id="btnGroupEditTx" class="btn btn-primary" onclick="openGroupEditTx()" style="display:none">✏️ Изменить группу</button>
+            <button id="btnDeleteSelectedTx" class="btn btn-danger" onclick="deleteSelectedTx()" style="display:none;background:var(--expense);color:#fff">🗑 Удалить выбранные</button>
           </div>
         </div>
         <div class="table-scroll">
@@ -2111,29 +2112,22 @@ function txRowClick(e, id) {
 }
 
 function txCheckChange(id, checked) {
-  const sid = String(id);
-  if (checked) selectedTxIds.add(sid);
-  else selectedTxIds.delete(sid);
+  if (checked) selectedTxIds.add(String(id));
+  else selectedTxIds.delete(String(id));
   updateTxSelection();
+  // Обновить "выбрать все"
   const cbs = document.querySelectorAll('.tx-cb');
   const checkAll = document.getElementById('txCheckAll');
   if (checkAll) checkAll.checked = cbs.length > 0 && [...cbs].every(cb => cb.checked);
 }
 
 function toggleAllTx(checked) {
-  // Если "выбрать все" — добавляем ВСЕ отфильтрованные транзакции, не только видимые строки
-  if (checked) {
-    // Берём id всех строк в таблице (могут быть строковые)
-    document.querySelectorAll('.tx-cb').forEach(cb => {
-      cb.checked = true;
-      selectedTxIds.add(String(cb.dataset.id));
-    });
-  } else {
-    document.querySelectorAll('.tx-cb').forEach(cb => {
-      cb.checked = false;
-      selectedTxIds.delete(String(cb.dataset.id));
-    });
-  }
+  document.querySelectorAll('.tx-cb').forEach(cb => {
+    cb.checked = checked;
+    const sid = String(cb.dataset.id);
+    if (checked) selectedTxIds.add(sid);
+    else selectedTxIds.delete(sid);
+  });
   updateTxSelection();
 }
 
@@ -2150,7 +2144,8 @@ function updateTxSelection() {
 function deleteSelectedTx() {
   const count = selectedTxIds.size;
   if (!count) return;
-  showConfirm(`Удалить ${count} транзакц${count===1?'ию':count<5?'ии':'ий'}? Это действие нельзя отменить.`, () => {
+  const word = count === 1 ? 'транзакцию' : count < 5 ? 'транзакции' : 'транзакций';
+  showConfirm(`Удалить ${count} ${word}? Это действие нельзя отменить.`, () => {
     transactions = transactions.filter(tx => !selectedTxIds.has(String(tx.id)));
     selectedTxIds.clear();
     const checkAll = document.getElementById('txCheckAll');
@@ -2158,7 +2153,7 @@ function deleteSelectedTx() {
     saveToStorage();
     applyFilters();
     renderAnalytics();
-    renderCharts();
+    if (typeof renderCharts === 'function') renderCharts();
     updateTxSelection();
     showToast(`Удалено: ${count} транзакций`, 'success');
   });
