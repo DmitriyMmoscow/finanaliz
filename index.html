@@ -2385,30 +2385,67 @@ function updateAnalyticsProjectSelect() {
     projs.map(p => `<option value="${p.replace(/"/g,'&quot;')}" ${p===current?'selected':''}>${p}</option>`).join('');
 }
 
+// ── Состояние сравнения объектов ─────────────────────────────
+let _compareMode = 'summary'; // 'summary' | 'bycat'
+let _compareDrillProj = null; // null = все, string = конкретный объект
+let _compareDrillCat  = null; // null = все статьи, string = конкретная статья
+
 function showCompareMode() {
   document.getElementById('comparePanel').style.display = 'block';
+  _compareMode = 'summary';
+  _compareDrillProj = null;
+  _compareDrillCat  = null;
   renderCompareTable();
 }
 
-function renderCompareTable() {
+// Получить транзакции объекта/статьи с учётом периода
+function _getTxsFor(proj, cat) {
   const { from, to } = getAnalyticsDateRange();
+  return transactions.filter(tx => {
+    if (proj && tx.project !== proj) return false;
+    if (cat  && tx.category !== cat)  return false;
+    if (tx.date) {
+      const d = new Date(tx.date);
+      if (from && d < from) return false;
+      if (to   && d > to)   return false;
+    }
+    return true;
+  });
+}
+
+function renderCompareTable() {
   const el = document.getElementById('compareTable');
   if (!el) return;
+
+  if (_compareMode === 'drill_transactions') {
+    _renderCompareDrillTx(el);
+  } else if (_compareMode === 'bycat') {
+    _renderCompareByCat(el);
+  } else {
+    _renderCompareSummary(el);
+  }
+}
+
+// ── Режим 1: Сводная таблица по объектам ─────────────────────
+function _renderCompareSummary(el) {
   const projs = [...new Set(transactions.map(t => t.project).filter(Boolean))].sort();
   if (!projs.length) { el.innerHTML = '<div style="color:var(--muted);padding:8px;font-size:11px">Нет данных</div>'; return; }
+
   const stats = projs.map(p => {
-    const txs = transactions.filter(tx => {
-      if (tx.project !== p) return false;
-      if (tx.date) { const d=new Date(tx.date); if(from&&d<from) return false; if(to&&d>to) return false; }
-      return true;
-    });
+    const txs = _getTxsFor(p, null);
     const income  = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
     const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
     return { name:p, income, expense, net:income-expense, count:txs.length };
   });
   const maxI=Math.max(...stats.map(r=>r.income),1), maxE=Math.max(...stats.map(r=>r.expense),1);
   const totI=stats.reduce((s,r)=>s+r.income,0), totE=stats.reduce((s,r)=>s+r.expense,0);
-  let h = `<table style="width:100%;border-collapse:collapse;font-size:11px">
+
+  let h = `
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="btn btn-primary" style="font-size:10px;padding:5px 12px" disabled>📊 По объектам</button>
+    <button class="btn btn-outline" style="font-size:10px;padding:5px 12px" onclick="_compareMode='bycat';_compareDrillProj=null;renderCompareTable()">📂 По статьям затрат</button>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
     <thead><tr style="border-bottom:1px solid var(--border)">
       <th style="padding:8px 10px;text-align:left;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Объект</th>
       <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Доходы</th>
@@ -2416,12 +2453,15 @@ function renderCompareTable() {
       <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Поток</th>
       <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Опер.</th>
       <th style="padding:8px 10px;min-width:100px"></th>
+      <th style="padding:8px 10px;width:80px"></th>
     </tr></thead><tbody>`;
+
   stats.forEach(r => {
     const nc=r.net>=0?'var(--income)':'var(--expense)';
     const iw=Math.round(r.income/maxI*100), ew=Math.round(r.expense/maxE*100);
-    h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.15)">
-      <td style="padding:9px 10px;font-weight:500">${r.name}</td>
+    const penc = encodeURIComponent(r.name);
+    h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.15);cursor:pointer" onclick="_compareMode='bycat';_compareDrillProj=decodeURIComponent('${penc}');renderCompareTable()" title="Провалиться в статьи">
+      <td style="padding:9px 10px;font-weight:500">🔍 ${r.name}</td>
       <td style="padding:9px 10px;text-align:right;color:var(--income)">${fmt(r.income)}</td>
       <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(r.expense)}</td>
       <td style="padding:9px 10px;text-align:right;color:${nc};font-weight:600">${fmt(r.net)}</td>
@@ -2431,15 +2471,171 @@ function renderCompareTable() {
           <div style="height:4px;border-radius:2px;background:rgba(0,212,170,0.15)"><div style="height:100%;width:${iw}%;background:var(--income);border-radius:2px"></div></div>
           <div style="height:4px;border-radius:2px;background:rgba(255,77,109,0.15)"><div style="height:100%;width:${ew}%;background:var(--expense);border-radius:2px"></div></div>
         </div>
-      </td></tr>`;
+      </td>
+      <td style="padding:9px 10px;font-size:10px;color:var(--accent)">→ детали</td>
+    </tr>`;
   });
+
   h += `<tr style="border-top:2px solid var(--border);font-weight:700">
     <td style="padding:9px 10px">ИТОГО</td>
     <td style="padding:9px 10px;text-align:right;color:var(--income)">${fmt(totI)}</td>
     <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(totE)}</td>
     <td style="padding:9px 10px;text-align:right;color:${totI-totE>=0?'var(--income)':'var(--expense)'}">${fmt(totI-totE)}</td>
     <td style="padding:9px 10px;text-align:right;color:var(--muted)">${stats.reduce((s,r)=>s+r.count,0)}</td>
-    <td></td></tr></tbody></table>`;
+    <td></td><td></td>
+  </tr></tbody></table>`;
+  el.innerHTML = h;
+}
+
+// ── Режим 2: Разбивка по статьям затрат (все объекты или один) ──
+function _renderCompareByCat(el) {
+  const proj = _compareDrillProj;
+  const title = proj ? `📂 ${proj} — по статьям` : '📂 Все объекты — по статьям';
+
+  // Собираем все статьи
+  const txsAll = _getTxsFor(proj, null);
+  const cats = [...new Set(txsAll.map(t => t.category).filter(Boolean))].sort();
+
+  // Если смотрим все объекты — строим матрицу статья × объект
+  const projs = proj ? [proj] : [...new Set(transactions.map(t=>t.project).filter(Boolean))].sort();
+
+  let h = `
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-outline" style="font-size:10px;padding:5px 12px" onclick="_compareMode='summary';_compareDrillProj=null;renderCompareTable()">← Назад</button>
+    <span style="font-size:12px;font-weight:600">${title}</span>
+    ${proj ? '' : `<span style="font-size:10px;color:var(--muted);margin-left:4px">Нажмите на строку чтобы увидеть по объектам</span>`}
+  </div>`;
+
+  if (!cats.length) { el.innerHTML = h + '<div style="color:var(--muted);font-size:11px">Нет данных</div>'; return; }
+
+  if (proj) {
+    // Один объект — таблица: статья | доходы | расходы | поток | кол-во → провал в транзакции
+    const stats = cats.map(cat => {
+      const txs = _getTxsFor(proj, cat);
+      const income  = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+      const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+      return { cat, income, expense, net:income-expense, count:txs.length };
+    }).sort((a,b) => b.expense - a.expense);
+
+    const totI=stats.reduce((s,r)=>s+r.income,0), totE=stats.reduce((s,r)=>s+r.expense,0);
+    const maxE=Math.max(...stats.map(r=>r.expense),1);
+
+    h += `<table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Статья</th>
+        <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Доходы</th>
+        <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Расходы</th>
+        <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Поток</th>
+        <th style="padding:8px 10px;text-align:right;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Опер.</th>
+        <th style="padding:8px 10px;min-width:80px"></th>
+        <th style="width:80px"></th>
+      </tr></thead><tbody>`;
+
+    stats.forEach(r => {
+      const nc=r.net>=0?'var(--income)':'var(--expense)';
+      const ew=Math.round(r.expense/maxE*100);
+      const penc=encodeURIComponent(proj), cenc=encodeURIComponent(r.cat);
+      h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.15);cursor:pointer"
+          onclick="_compareMode='drill_transactions';_compareDrillProj=decodeURIComponent('${penc}');_compareDrillCat=decodeURIComponent('${cenc}');renderCompareTable()" title="Смотреть транзакции">
+        <td style="padding:9px 10px;font-weight:500">🔍 ${r.cat}</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--income)">${r.income?fmt(r.income):'—'}</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--expense)">${r.expense?fmt(r.expense):'—'}</td>
+        <td style="padding:9px 10px;text-align:right;color:${nc};font-weight:600">${fmt(r.net)}</td>
+        <td style="padding:9px 10px;text-align:right;color:var(--muted)">${r.count}</td>
+        <td style="padding:9px 10px">
+          <div style="height:4px;border-radius:2px;background:rgba(255,77,109,0.15)"><div style="height:100%;width:${ew}%;background:var(--expense);border-radius:2px"></div></div>
+        </td>
+        <td style="padding:9px 10px;font-size:10px;color:var(--accent)">→ транзакции</td>
+      </tr>`;
+    });
+
+    h += `<tr style="border-top:2px solid var(--border);font-weight:700">
+      <td style="padding:9px 10px">ИТОГО</td>
+      <td style="padding:9px 10px;text-align:right;color:var(--income)">${fmt(totI)}</td>
+      <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(totE)}</td>
+      <td style="padding:9px 10px;text-align:right;color:${totI-totE>=0?'var(--income)':'var(--expense)'}">${fmt(totI-totE)}</td>
+      <td style="padding:9px 10px;text-align:right;color:var(--muted)">${stats.reduce((s,r)=>s+r.count,0)}</td>
+      <td></td><td></td>
+    </tr></tbody></table>`;
+
+  } else {
+    // Все объекты — матрица: строка=статья, колонки=объекты
+    const catStats = cats.map(cat => {
+      const byProj = {};
+      projs.forEach(p => {
+        const txs = _getTxsFor(p, cat);
+        byProj[p] = txs.reduce((s,t)=>s+(t.type==='expense'?t.amount:0),0);
+      });
+      const total = Object.values(byProj).reduce((s,v)=>s+v,0);
+      return { cat, byProj, total };
+    }).filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
+
+    h += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:10px;min-width:600px">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:7px 10px;text-align:left;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;min-width:160px">Статья расходов</th>
+        ${projs.map(p=>`<th style="padding:7px 8px;text-align:right;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;white-space:nowrap">${p}</th>`).join('')}
+        <th style="padding:7px 10px;text-align:right;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase">Итого</th>
+      </tr></thead><tbody>`;
+
+    catStats.forEach(r => {
+      const penc=encodeURIComponent(r.cat);
+      h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.1)">
+        <td style="padding:8px 10px;font-weight:500;cursor:pointer;color:var(--accent)" onclick="_compareMode='bycat';_compareDrillCat=decodeURIComponent('${penc}');renderCompareTable()">${r.cat}</td>
+        ${projs.map(p=>`<td style="padding:8px 8px;text-align:right;color:var(--expense)">${r.byProj[p]?fmt(r.byProj[p]):'—'}</td>`).join('')}
+        <td style="padding:8px 10px;text-align:right;font-weight:600;color:var(--expense)">${fmt(r.total)}</td>
+      </tr>`;
+    });
+
+    const totByProj = {};
+    projs.forEach(p => { totByProj[p] = catStats.reduce((s,r)=>s+(r.byProj[p]||0),0); });
+    h += `<tr style="border-top:2px solid var(--border);font-weight:700">
+      <td style="padding:9px 10px">ИТОГО расходы</td>
+      ${projs.map(p=>`<td style="padding:9px 8px;text-align:right;color:var(--expense)">${fmt(totByProj[p])}</td>`).join('')}
+      <td style="padding:9px 10px;text-align:right;color:var(--expense)">${fmt(Object.values(totByProj).reduce((s,v)=>s+v,0))}</td>
+    </tr></tbody></table></div>`;
+  }
+
+  el.innerHTML = h;
+}
+
+// ── Режим 3: Список транзакций (провал из статьи конкретного объекта) ──
+function _renderCompareDrillTx(el) {
+  const txs = _getTxsFor(_compareDrillProj, _compareDrillCat)
+    .sort((a,b) => a.date > b.date ? -1 : 1);
+
+  const total = txs.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
+  const penc=encodeURIComponent(_compareDrillProj);
+
+  let h = `
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-outline" style="font-size:10px;padding:5px 12px" onclick="_compareMode='bycat';_compareDrillCat=null;_compareDrillProj=decodeURIComponent('${penc}');renderCompareTable()">← Назад</button>
+    <span style="font-size:12px;font-weight:600">📋 ${_compareDrillProj} / ${_compareDrillCat}</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:4px">${txs.length} операций</span>
+    <span style="font-size:11px;font-weight:600;color:${total>=0?'var(--income)':'var(--expense)'};margin-left:auto">${fmt(Math.abs(total))}</span>
+  </div>
+  <div style="max-height:400px;overflow-y:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead style="position:sticky;top:0;background:var(--surface);z-index:1"><tr style="border-bottom:1px solid var(--border)">
+      <th style="padding:7px 10px;text-align:left;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase">Дата</th>
+      <th style="padding:7px 10px;text-align:left;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase">Контрагент</th>
+      <th style="padding:7px 10px;text-align:left;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase">Назначение</th>
+      <th style="padding:7px 10px;text-align:right;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase">Сумма</th>
+    </tr></thead><tbody>`;
+
+  txs.forEach(tx => {
+    const sign = tx.type==='income' ? '+' : '-';
+    const col  = tx.type==='income' ? 'var(--income)' : 'var(--expense)';
+    const purp = (tx.purpose||tx.description||'').substring(0,60);
+    h += `<tr style="border-bottom:1px solid rgba(90,96,112,0.1)">
+      <td style="padding:7px 10px;white-space:nowrap;color:var(--muted)">${fmtDate(tx.date)}</td>
+      <td style="padding:7px 10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(tx.counterparty||'').replace(/"/g,'')}">${tx.counterparty||'—'}</td>
+      <td style="padding:7px 10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px" title="${(tx.purpose||'').replace(/"/g,'')}">${purp}</td>
+      <td style="padding:7px 10px;text-align:right;color:${col};font-weight:500;white-space:nowrap">${sign}${fmt(tx.amount)}</td>
+    </tr>`;
+  });
+
+  if (!txs.length) h += `<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--muted)">Нет транзакций</td></tr>`;
+  h += `</tbody></table></div>`;
   el.innerHTML = h;
 }
 
