@@ -3344,12 +3344,11 @@ function ddsToggleAllGroups(expand) {
 function renderCatTable() {
   const body = document.getElementById('catTable');
   if (!body) return;
-  // Для каждой категории подтягиваем группу из CAT_GROUP_MAP если поле не заполнено
-  const groupOptions = `<option value="Административно-хозяйственные">Административно-хозяйственные</option><option value="Закупки и материалы">Закупки и материалы</option><option value="Консалтинговые услуги">Консалтинговые услуги</option><option value="Кредиты">Кредиты</option><option value="Маркетинг">Маркетинг</option><option value="Медицинские услуги">Медицинские услуги</option><option value="Налоги с ФОТ">Налоги с ФОТ</option><option value="Оплата труда">Оплата труда</option><option value="Помещение">Помещение</option><option value="Транспорт и логистика">Транспорт и логистика</option><option value="Услуги банка">Услуги банка</option><option value="IT и сервисы">IT и сервисы</option><option value="Прочее">Прочее</option>`;
   body.innerHTML = categories.map(c => {
     const currentGroup = c.group || getCatGroup(c.name);
+    // Берём группы из catGroupsList (динамический список, включает новые группы)
     const opts = '<option value="">— выбрать —</option>' +
-      ['Административно-хозяйственные', 'Закупки и материалы', 'Консалтинговые услуги', 'Кредиты', 'Маркетинг', 'Медицинские услуги', 'Налоги с ФОТ', 'Оплата труда', 'Помещение', 'Транспорт и логистика', 'Услуги банка', 'IT и сервисы', 'Прочее'].map(g =>
+      catGroupsList.map(g =>
         `<option value="${g}" ${g===currentGroup?'selected':''}>${g}</option>`
       ).join('');
     return `
