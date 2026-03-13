@@ -814,7 +814,7 @@ tr:not(.tx-selected):hover td {
           <input type="date" id="filterDateTo" onchange="applyFilters()">
         </div>
         <div class="filter-group">
-          <input type="text" id="filterSearch" placeholder="Поиск по контрагенту, назначению, сумме..." oninput="applyFilters()" style="width:200px">
+          <input type="text" id="filterSearch" placeholder="Поиск по контрагенту, назначению, сумме, статье..." oninput="applyFilters()" style="width:200px">
         </div>
         <button class="btn btn-outline" onclick="resetFilters()">Сбросить</button>
         <button class="btn btn-primary" onclick="exportExcel()" style="margin-left:auto">⬇ Excel</button>
@@ -2131,8 +2131,11 @@ function resetFilters() {
 function populateFilterCats() {
   const el = document.getElementById('filterCat');
   if (!el) return;
-  const cats = [...new Set(transactions.map(t => t.category))].filter(Boolean).sort();
-  el.innerHTML = '<option value="">Все</option>' + cats.map(c => `<option>${c}</option>`).join('');
+  // Берём из справочника категорий + уникальные из транзакций (фильтруем мусор)
+  const fromCats = categories.map(c => c.name).filter(Boolean);
+  const fromTx = [...new Set(transactions.map(t => t.category))].filter(n => n && n !== '#N/A' && !n.startsWith('#'));
+  const all = [...new Set([...fromCats, ...fromTx])].sort();
+  el.innerHTML = '<option value="">Все</option>' + all.map(c => `<option value="${c}">${c}</option>`).join('');
 }
 
 function getCatColor(catName) {
@@ -2314,7 +2317,7 @@ function inlineSetCat(id, value) {
   saveToStorage();
   renderAnalytics();
   renderDDS();
-  showToast(`✅ Статья ДДС сохранена: ${value}`, 'success');
+  showToast('✅ Статья ДДС сохранена: ' + value, 'success');
 }
 
 function inlineSetProject(id, value) {
