@@ -939,11 +939,27 @@ tr:not(.tx-selected):hover td {
       </div>
       <!-- Фильтры ДДС -->
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 20px">
-        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);white-space:nowrap">Объект</span>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);white-space:nowrap">Период</span>
+        <select id="ddsPreset" onchange="applyDdsFilters()" style="font-size:11px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
+          <option value="all">Все время</option>
+          <option value="thisMonth">Текущий месяц</option>
+          <option value="lastMonth">Прошлый месяц</option>
+          <option value="thisQuarter">Текущий квартал</option>
+          <option value="thisYear">Текущий год</option>
+          <option value="custom">Произвольный</option>
+        </select>
+        <div id="ddsCustomDates" style="display:none;gap:8px;align-items:center">
+          <span style="font-size:9px;color:var(--muted)">С</span>
+          <input type="date" id="ddsDateFrom" onchange="applyDdsFilters()" style="font-size:11px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
+          <span style="font-size:9px;color:var(--muted)">По</span>
+          <input type="date" id="ddsDateTo" onchange="applyDdsFilters()" style="font-size:11px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
+        </div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);white-space:nowrap;margin-left:4px">Объект</span>
         <select id="ddsProjectFilter" onchange="renderDDS()" style="font-size:11px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
           <option value="">Все объекты</option>
         </select>
-        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);white-space:nowrap;margin-left:8px">Вид</span>
+        <div id="ddsPeriodLabel" style="font-size:10px;color:var(--accent)"></div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);white-space:nowrap;margin-left:4px">Вид</span>
         <div style="display:flex;gap:4px">
           <button id="ddsModeFlat" class="btn btn-primary" onclick="setDdsMode('flat')" style="font-size:10px;padding:5px 12px">Список</button>
           <button id="ddsModeGroup" class="btn btn-outline" onclick="setDdsMode('group')" style="font-size:10px;padding:5px 12px">Группы</button>
@@ -995,6 +1011,7 @@ tr:not(.tx-selected):hover td {
             <tr>
               <th>Название</th>
               <th>Тип</th>
+              <th>Группа</th>
               <th>Ключевые слова</th>
               <th>Действие</th>
             </tr>
@@ -2934,7 +2951,13 @@ const CAT_GROUP_MAP = {
   'Связь и интернет':                                         'IT и сервисы',
   'Услуги программистов (доработка / поддержка сайта и пр.)': 'IT и сервисы',
 };
-function getCatGroup(cat) { return CAT_GROUP_MAP[cat] || 'Прочее'; }
+function getCatGroup(catName) {
+  // Сначала проверяем сохранённую группу в объекте категории
+  const catObj = categories.find(c => c.name === catName);
+  if (catObj && catObj.group) return catObj.group;
+  // Потом статический справочник
+  return CAT_GROUP_MAP[catName] || 'Прочее';
+}
 
 let _ddsMode = 'flat'; // 'flat' | 'group'
 
@@ -2956,10 +2979,55 @@ function updateDdsProjectSelect() {
     projs.map(p=>`<option value="${p.replace(/"/g,'&quot;')}" ${p===current?'selected':''}>${p}</option>`).join('');
 }
 
+function getDdsPeriodRange() {
+  const preset = document.getElementById('ddsPreset')?.value || 'all';
+  const now = new Date();
+  let from = null, to = null;
+  if (preset === 'thisMonth') {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else if (preset === 'lastMonth') {
+    from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    to   = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else if (preset === 'thisQuarter') {
+    const q = Math.floor(now.getMonth() / 3);
+    from = new Date(now.getFullYear(), q * 3, 1);
+    to   = new Date(now.getFullYear(), q * 3 + 3, 0);
+  } else if (preset === 'thisYear') {
+    from = new Date(now.getFullYear(), 0, 1);
+    to   = new Date(now.getFullYear(), 11, 31);
+  } else if (preset === 'custom') {
+    const f = document.getElementById('ddsDateFrom')?.value;
+    const t = document.getElementById('ddsDateTo')?.value;
+    if (f) from = new Date(f);
+    if (t) to   = new Date(t);
+  }
+  return { from, to };
+}
+
+function applyDdsFilters() {
+  const preset = document.getElementById('ddsPreset')?.value;
+  const customDiv = document.getElementById('ddsCustomDates');
+  if (customDiv) customDiv.style.display = preset === 'custom' ? 'flex' : 'none';
+  const { from, to } = getDdsPeriodRange();
+  const label = document.getElementById('ddsPeriodLabel');
+  if (label) label.textContent = (from && to)
+    ? fmtDate(from.toISOString().substring(0,10)) + ' — ' + fmtDate(to.toISOString().substring(0,10)) : '';
+  renderDDS();
+}
+
 function getDdsFilteredTx() {
   const proj = document.getElementById('ddsProjectFilter')?.value || '';
-  if (!proj) return transactions;
-  return transactions.filter(t => t.project === proj);
+  const { from, to } = getDdsPeriodRange();
+  return transactions.filter(t => {
+    if (proj && t.project !== proj) return false;
+    if (t.date) {
+      const d = new Date(t.date);
+      if (from && d < from) return false;
+      if (to   && d > to)   return false;
+    }
+    return true;
+  });
 }
 
 let ddsState = { level: 'categories', type: null, category: null, counterparty: null };
@@ -3205,14 +3273,36 @@ function ddsToggleAllGroups(expand) {
 function renderCatTable() {
   const body = document.getElementById('catTable');
   if (!body) return;
-  body.innerHTML = categories.map(c => `
+  // Для каждой категории подтягиваем группу из CAT_GROUP_MAP если поле не заполнено
+  const groupOptions = `<option value="Административно-хозяйственные">Административно-хозяйственные</option><option value="Закупки и материалы">Закупки и материалы</option><option value="Консалтинговые услуги">Консалтинговые услуги</option><option value="Кредиты">Кредиты</option><option value="Маркетинг">Маркетинг</option><option value="Медицинские услуги">Медицинские услуги</option><option value="Налоги с ФОТ">Налоги с ФОТ</option><option value="Оплата труда">Оплата труда</option><option value="Помещение">Помещение</option><option value="Транспорт и логистика">Транспорт и логистика</option><option value="Услуги банка">Услуги банка</option><option value="IT и сервисы">IT и сервисы</option><option value="Прочее">Прочее</option>`;
+  body.innerHTML = categories.map(c => {
+    const currentGroup = c.group || getCatGroup(c.name);
+    const opts = '<option value="">— выбрать —</option>' +
+      ['Административно-хозяйственные', 'Закупки и материалы', 'Консалтинговые услуги', 'Кредиты', 'Маркетинг', 'Медицинские услуги', 'Налоги с ФОТ', 'Оплата труда', 'Помещение', 'Транспорт и логистика', 'Услуги банка', 'IT и сервисы', 'Прочее'].map(g =>
+        `<option value="${g}" ${g===currentGroup?'selected':''}>${g}</option>`
+      ).join('');
+    return `
     <tr>
-      <td>${c.name}</td>
+      <td style="font-weight:500">${c.name}</td>
       <td><span class="badge badge-${c.type}">${c.type === 'income' ? 'Доход' : 'Расход'}</span></td>
+      <td>
+        <select style="font-size:10px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);max-width:200px"
+            onchange="setCatGroup(${c.id}, this.value)">${opts}</select>
+      </td>
       <td style="color:var(--muted);font-size:10px">${(c.keywords || []).join(', ').substring(0, 50) || '—'}</td>
       <td><button class="btn btn-danger" onclick="deleteCat(${c.id})">Удалить</button></td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
+}
+
+function setCatGroup(id, group) {
+  const cat = categories.find(c => c.id === id);
+  if (!cat) return;
+  cat.group = group;
+  saveToStorage();
+  // Обновляем CAT_GROUP_MAP в памяти
+  if (group) CAT_GROUP_MAP[cat.name] = group;
+  showToast(`Группа "${group}" сохранена`, 'success');
 }
 
 function openCatModal(id) {
@@ -3231,7 +3321,8 @@ function saveCat() {
   const type = document.getElementById('catType').value;
   const keywords = document.getElementById('catKeywords').value.split(',').map(k => k.trim()).filter(Boolean);
   const newId = Math.max(0, ...categories.map(c => c.id)) + 1;
-  categories.push({ id: newId, name, type, keywords });
+  const group = CAT_GROUP_MAP[name] || '';
+  categories.push({ id: newId, name, type, keywords, group });
   closeCatModal();
   saveToStorage();
   renderCatTable();
