@@ -933,9 +933,21 @@ tr:not(.tx-selected):hover td {
 
     <!-- DDS TAB -->
     <div id="tab-dds" class="page">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
         <div style="font-family:'Unbounded',sans-serif;font-size:14px;font-weight:600">Движение денежных средств</div>
         <button class="btn btn-primary" onclick="exportExcel('dds')">⬇ Выгрузить отчёт</button>
+      </div>
+      <!-- Фильтры ДДС -->
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 20px">
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);white-space:nowrap">Объект</span>
+        <select id="ddsProjectFilter" onchange="renderDDS()" style="font-size:11px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
+          <option value="">Все объекты</option>
+        </select>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);white-space:nowrap;margin-left:8px">Вид</span>
+        <div style="display:flex;gap:4px">
+          <button id="ddsModeFlat" class="btn btn-primary" onclick="setDdsMode('flat')" style="font-size:10px;padding:5px 12px">Список</button>
+          <button id="ddsModeGroup" class="btn btn-outline" onclick="setDdsMode('group')" style="font-size:10px;padding:5px 12px">Группы</button>
+        </div>
       </div>
       <div class="dds-grid" id="ddsGrid">
         <div class="empty" style="grid-column:1/-1">
@@ -2776,6 +2788,80 @@ function renderBalanceChart() {
 
 // ===================== DDS =====================
 // ── DDS drill-down state ──
+
+// ── Справочник групп затрат ───────────────────────────────────
+const CAT_GROUP_MAP = {
+  'Канцелярские расходы':                                     'Административно-хозяйственные',
+  'Командировочные расходы':                                  'Административно-хозяйственные',
+  'Офисные расходы':                                          'Административно-хозяйственные',
+  'Представительские расходы':                                'Административно-хозяйственные',
+  'Прочие хозяйственные расходы':                             'Административно-хозяйственные',
+  'Ремонт и обслуживание оборудования':                       'Административно-хозяйственные',
+  'Услуги КоллЦентра':                                        'Административно-хозяйственные',
+  'Услуги прачечной и стирка текстиля':                       'Административно-хозяйственные',
+  'Закупка бытовой химии':                                    'Закупки и материалы',
+  'Закупка лекарственных препаратов':                         'Закупки и материалы',
+  'Закупка материальных запасов':                             'Закупки и материалы',
+  'Закупка оргтехники':                                       'Закупки и материалы',
+  'Закупка продуктов питания':                                'Закупки и материалы',
+  'Бухгалтерские услуги':                                     'Консалтинговые услуги',
+  'Подбор персонала (HR)':                                    'Консалтинговые услуги',
+  'Юридические услуги':                                       'Консалтинговые услуги',
+  'Погашение кредитов и займов':                              'Кредиты',
+  'Ведение Яндекс Директ':                                    'Маркетинг',
+  'Маркетинг ПО и лицензии':                                  'Маркетинг',
+  'Написание SEO статей':                                     'Маркетинг',
+  'Прочие маркетинговые расходы':                             'Маркетинг',
+  'Рекламный бюджет Яндекс Директ':                          'Маркетинг',
+  'Яндекс карты (по филиалам)':                               'Маркетинг',
+  'Анализы':                                                  'Медицинские услуги',
+  'Налоги и страховые взносы на ФОТ производственного персонала': 'Налоги с ФОТ',
+  'Зарплата вспомогательного персонала':                      'Оплата труда',
+  'Зарплата производственного персонала':                     'Оплата труда',
+  'Зарплата управленческого персонала':                       'Оплата труда',
+  'Аренда офиса':                                             'Помещение',
+  'Аренда помещений':                                         'Помещение',
+  'Коммунальные услуги':                                      'Помещение',
+  'Охранные услуги':                                          'Помещение',
+  'Противопожарная безопасность':                             'Помещение',
+  'Ремонт и обслуживание помещений':                          'Помещение',
+  'Санэпидемиологические услуги':                             'Помещение',
+  'Утилизация мед отходов':                                   'Помещение',
+  'Прочая доставка':                                          'Транспорт и логистика',
+  'Такси':                                                    'Транспорт и логистика',
+  'Комиссия банка':                                           'Услуги банка',
+  'Лицензии и ПО':                                            'IT и сервисы',
+  'Связь и интернет':                                         'IT и сервисы',
+  'Услуги программистов (доработка / поддержка сайта и пр.)': 'IT и сервисы',
+};
+function getCatGroup(cat) { return CAT_GROUP_MAP[cat] || 'Прочее'; }
+
+let _ddsMode = 'flat'; // 'flat' | 'group'
+
+function setDdsMode(mode) {
+  _ddsMode = mode;
+  document.getElementById('ddsModeFlat').className  = mode==='flat'  ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('ddsModeGroup').className = mode==='group' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('ddsModeFlat').style.cssText  = 'font-size:10px;padding:5px 12px';
+  document.getElementById('ddsModeGroup').style.cssText = 'font-size:10px;padding:5px 12px';
+  renderDDS();
+}
+
+function updateDdsProjectSelect() {
+  const sel = document.getElementById('ddsProjectFilter');
+  if (!sel) return;
+  const current = sel.value;
+  const projs = [...new Set(transactions.map(t=>t.project).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Все объекты</option>' +
+    projs.map(p=>`<option value="${p.replace(/"/g,'&quot;')}" ${p===current?'selected':''}>${p}</option>`).join('');
+}
+
+function getDdsFilteredTx() {
+  const proj = document.getElementById('ddsProjectFilter')?.value || '';
+  if (!proj) return transactions;
+  return transactions.filter(t => t.project === proj);
+}
+
 let ddsState = { level: 'categories', type: null, category: null, counterparty: null };
 // Храним данные в переменных, а не передаём через onclick — защита от кавычек
 let _ddsCatList = { income: [], expense: [] };
@@ -2786,6 +2872,7 @@ function esc(s) {
 }
 
 function renderDDS() {
+  updateDdsProjectSelect();
   const grid = document.getElementById('ddsGrid');
   if (!grid) return;
   if (!transactions.length) {
@@ -2807,7 +2894,7 @@ function renderDDSLevel(grid) {
 
   } else if (ddsState.level === 'counterparties') {
     const color = ddsState.type === 'income' ? 'var(--income)' : 'var(--expense)';
-    const txs = transactions.filter(t => t.category === ddsState.category);
+    const txs = getDdsFilteredTx().filter(t => t.category === ddsState.category);
     const total = txs.reduce((s, t) => s + t.amount, 0);
     const byCp = {};
     txs.forEach(t => { const cp = t.counterparty || '—'; byCp[cp] = (byCp[cp]||0) + t.amount; });
@@ -2843,7 +2930,7 @@ function renderDDSLevel(grid) {
 
   } else if (ddsState.level === 'documents') {
     const color = ddsState.type === 'income' ? 'var(--income)' : 'var(--expense)';
-    const txs = transactions.filter(t =>
+    const txs = getDdsFilteredTx().filter(t =>
       t.category === ddsState.category && (t.counterparty || '—') === ddsState.counterparty
     );
     const total = txs.reduce((s,t) => s+t.amount, 0);
@@ -2904,12 +2991,16 @@ function ddsDrillBack(level) {
 }
 
 function buildDDSSection(type, label, color) {
-  const txs = transactions.filter(t => t.type === type);
+  const txs = getDdsFilteredTx().filter(t => t.type === type);
   const total = txs.reduce((s, t) => s + t.amount, 0);
   const byCat = {};
   txs.forEach(t => { byCat[t.category] = (byCat[t.category] || 0) + t.amount; });
   const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
-  _ddsCatList[type] = sorted.map(([c]) => c); // сохраняем список
+  _ddsCatList[type] = sorted.map(([c]) => c);
+
+  if (_ddsMode === 'group' && type === 'expense') {
+    return buildDDSSectionGrouped(sorted, total, color);
+  }
 
   const rows = sorted.map(([cat, sum], idx) => {
     const pct = total > 0 ? (sum / total * 100).toFixed(1) : 0;
@@ -2929,6 +3020,68 @@ function buildDDSSection(type, label, color) {
   return `<div class="dds-card">
     <div class="dds-card-header">
       <span>${label}</span>
+      <span style="color:${color}">${fmt(total)}</span>
+    </div>
+    ${rows || '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px">Нет данных</div>'}
+  </div>`;
+}
+
+// ── Режим группировки расходов по группам ─────────────────────
+function buildDDSSectionGrouped(sorted, total, color) {
+  // Собираем по группам
+  const groups = {};
+  sorted.forEach(([cat, sum]) => {
+    const g = getCatGroup(cat);
+    if (!groups[g]) groups[g] = { sum: 0, cats: [] };
+    groups[g].sum += sum;
+    groups[g].cats.push({ cat, sum });
+  });
+  const sortedGroups = Object.entries(groups).sort((a,b) => b[1].sum - a[1].sum);
+
+  const rows = sortedGroups.map(([group, gdata]) => {
+    const gpct = total > 0 ? (gdata.sum / total * 100).toFixed(1) : 0;
+    // Дочерние статьи
+    const subRows = gdata.cats.sort((a,b) => b.sum - a.sum).map(({cat, sum}) => {
+      const idx = _ddsCatList['expense'].indexOf(cat);
+      const pct = total > 0 ? (sum / total * 100).toFixed(1) : 0;
+      return `<div class="dds-row dds-clickable" onclick="ddsDrillCat(${idx},'expense')"
+          style="padding-left:28px;background:rgba(0,0,0,0.06)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px">${esc(cat)}</div>
+          <div class="dds-bar" style="width:${pct}%;background:${color};opacity:0.7"></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px">
+          <div style="color:${color};font-weight:500;font-size:11px">${fmt(sum)}</div>
+          <div style="font-size:9px;color:var(--muted)">${pct}%</div>
+        </div>
+        <div style="margin-left:8px;color:var(--muted);font-size:11px">›</div>
+      </div>`;
+    }).join('');
+
+    const gid = 'ddsgrp_' + group.replace(/[^a-zA-Zа-яА-Я0-9]/g,'_');
+    return `
+    <div style="border-bottom:1px solid var(--border)">
+      <div class="dds-row" style="cursor:pointer;font-weight:600;background:var(--surface2)"
+          onclick="var s=document.getElementById('${gid}');s.style.display=s.style.display==='none'?'':'none';this.querySelector('.grp-arrow').textContent=s.style.display==='none'?'▶':'▼'">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="grp-arrow" style="font-size:9px;color:var(--muted)">▼</span>
+            <span>${esc(group)}</span>
+          </div>
+          <div class="dds-bar" style="width:${gpct}%;background:${color}"></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px">
+          <div style="color:${color};font-weight:600">${fmt(gdata.sum)}</div>
+          <div style="font-size:9px;color:var(--muted)">${gpct}%</div>
+        </div>
+      </div>
+      <div id="${gid}">${subRows}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="dds-card">
+    <div class="dds-card-header">
+      <span>Расходы</span>
       <span style="color:${color}">${fmt(total)}</span>
     </div>
     ${rows || '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px">Нет данных</div>'}
